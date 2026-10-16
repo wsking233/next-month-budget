@@ -71,6 +71,8 @@ iOS 是当前唯一目标平台；React Native + Expo + TypeScript，Expo Router
 | [开发路线图](docs/08-development-roadmap.md) | 验证、原型、开发、真机测试 |
 | [竞品观察](docs/09-competitor-analysis.md) | Goodbudget、Actual Budget、YNAB |
 | [决策与待确认项](docs/10-decisions-and-open-questions.md) | 区分已定方案与假设 |
+| [iPhone 真机冒烟验收](docs/11-iphone-smoke-test.md) | 真机启动、导航、深浅色与动态字体检查 |
+| [首版交互流程](docs/12-interaction-flow.md) | 页面结构、主流程与提交约束 |
 
 ## 重要边界
 - 示例月收入 20,000 元、目标储蓄 13,000 元、消费预算 7,000 元，**不是软件硬编码参数**。

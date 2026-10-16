@@ -13,27 +13,26 @@ const auditNames = {
 } as const;
 
 export default function HistoryScreen() {
-  const budget = useBudget();
-  const sections = budget.ledger.audit.length
-    ? budget.ledger.audit.map((event, index) => ({
+  const { ledger, resetAll } = useBudget();
+  const sections = ledger.audit.length
+    ? ledger.audit.map((event, index) => ({
         title: `${index + 1}. ${auditNames[event.kind]}`,
         description: `对象：${event.subjectId}`,
         status: event.reason,
       }))
-    : [{ title: '记录时间线', description: '完成演示操作后，这里会显示不可静默覆盖的审计记录。', status: '暂无记录' }];
+    : [{ title: '暂无记录', description: '周期、资金池、拨款和结算操作会依次出现在这里。' }];
 
   return (
     <NativeScreen
       title="操作记录"
-      description="每次拨款、登记和结算都留下独立记录。"
+      description="当前是内存原型；审计记录会在应用重启后重置。"
       sections={sections}
       actions={[{
-        label: '重置全部演示数据',
-        systemImage: 'arrow.counterclockwise',
-        disabled: budget.ledger.audit.length === 0,
-        onPress: budget.resetDemo,
+        label: '清空全部内存数据',
+        systemImage: 'trash',
+        disabled: ledger.audit.length === 0,
+        onPress: resetAll,
       }]}
-      error={budget.error}
     />
   );
 }

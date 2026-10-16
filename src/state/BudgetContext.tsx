@@ -5,91 +5,85 @@ import {
   createBudgetPeriod,
   createBudgetPool,
   createLedger,
-  getPoolBalance,
   recordStatement,
   settleStatement,
+  type Allocation,
   type BudgetLedger,
+  type BudgetPeriod,
 } from '@/domain/budget';
 
-const demo = {
-  period: { id: 'demo-period', startsOn: '2027-01-10', endsOn: '2027-02-09' },
-  dailyPool: { id: 'demo-daily', name: '日常（演示）' },
-  digitalPool: { id: 'demo-digital', name: '数码（演示）' },
-  statement: {
-    id: 'demo-statement',
-    accountId: 'demo-card',
-    fingerprint: 'demo-card:2027-01',
-    amount: 6_200_00,
-    dueOn: '2027-02-05',
-  },
-} as const;
+type Result = { ok: true } | { ok: false; error: string };
 
 type BudgetContextValue = {
   ledger: BudgetLedger;
-  error?: string;
-  hasPeriod: boolean;
-  hasPools: boolean;
-  hasAllocation: boolean;
-  hasStatement: boolean;
-  isSettled: boolean;
-  dailyBalance: number;
-  digitalBalance: number;
-  createDemoPeriod(): void;
-  createDemoPools(): void;
-  allocateDemoBudget(): void;
-  recordDemoStatement(): void;
-  settleDemoStatement(): void;
-  resetDemo(): void;
+  latestPeriod?: BudgetPeriod;
+  createPeriod(input: { startsOn: string; endsOn: string }): Result;
+  createPool(name: string): Result;
+  allocateBudget(input: { periodId: string; poolId: string; amount: number }): Result;
+  createAndSettleStatement(input: {
+    accountId: string;
+    statementKey: string;
+    amount: number;
+    dueOn: string;
+    allocations: Omit<Allocation, 'id'>[];
+  }): Result;
+  resetAll(): void;
 };
 
 const BudgetContext = createContext<BudgetContextValue | null>(null);
+let sequence = 0;
+
+function nextId(prefix: string) {
+  sequence += 1;
+  return `${prefix}-${Date.now()}-${sequence}`;
+}
 
 export function BudgetProvider({ children }: PropsWithChildren) {
-  const [state, setState] = useState<{ ledger: BudgetLedger; error?: string }>(() => ({ ledger: createLedger() }));
-  const { ledger, error } = state;
+  const [ledger, setLedger] = useState<BudgetLedger>(createLedger);
 
-  function apply(command: (current: BudgetLedger) => BudgetLedger) {
-    setState((current) => {
-      try {
-        return { ledger: command(current.ledger) };
-      } catch (caught) {
-        return { ...current, error: caught instanceof Error ? caught.message : '操作失败' };
-      }
-    });
+  function execute(command: (current: BudgetLedger) => BudgetLedger): Result {
+    try {
+      setLedger(command(ledger));
+      return { ok: true };
+    } catch (caught) {
+      return { ok: false, error: caught instanceof Error ? caught.message : '操作失败' };
+    }
   }
 
-  const value = useMemo<BudgetContextValue>(() => {
-    const hasPeriod = ledger.periods.some((item) => item.id === demo.period.id);
-    const hasPools = ledger.pools.some((item) => item.id === demo.dailyPool.id) && ledger.pools.some((item) => item.id === demo.digitalPool.id);
-    const hasAllocation = ledger.entries.some((item) => item.kind === 'income_allocation');
-    const statement = ledger.statements.find((item) => item.id === demo.statement.id);
-    return {
-      ledger,
-      error,
-      hasPeriod,
-      hasPools,
-      hasAllocation,
-      hasStatement: Boolean(statement),
-      isSettled: statement?.status === 'settled',
-      dailyBalance: hasPools && hasPeriod ? getPoolBalance(ledger, demo.dailyPool.id, demo.period.id) : 0,
-      digitalBalance: hasPools && hasPeriod ? getPoolBalance(ledger, demo.digitalPool.id, demo.period.id) : 0,
-      createDemoPeriod: () => apply((current) => createBudgetPeriod(current, demo.period)),
-      createDemoPools: () => apply((current) => createBudgetPool(createBudgetPool(current, demo.dailyPool), demo.digitalPool)),
-      allocateDemoBudget: () => apply((current) => {
-        let next = allocateIncome(current, { id: 'demo-income-daily', periodId: demo.period.id, poolId: demo.dailyPool.id, amount: 4_000_00 });
-        next = allocateIncome(next, { id: 'demo-income-digital', periodId: demo.period.id, poolId: demo.digitalPool.id, amount: 3_000_00 });
-        return next;
-      }),
-      recordDemoStatement: () => apply((current) => recordStatement(current, demo.statement)),
-      settleDemoStatement: () => apply((current) => settleStatement(current, demo.statement.id, [
-        { id: 'demo-allocation-daily', poolId: demo.dailyPool.id, periodId: demo.period.id, amount: 2_800_00 },
-        { id: 'demo-allocation-digital', poolId: demo.digitalPool.id, periodId: demo.period.id, amount: 3_400_00 },
-      ])),
-      resetDemo: () => {
-        setState({ ledger: createLedger() });
-      },
-    };
-  }, [error, ledger]);
+  const value = useMemo<BudgetContextValue>(() => ({
+    ledger,
+    latestPeriod: ledger.periods.at(-1),
+    createPeriod: ({ startsOn, endsOn }) => execute((current) => createBudgetPeriod(current, {
+      id: nextId('period'),
+      startsOn,
+      endsOn,
+    })),
+    createPool: (name) => execute((current) => createBudgetPool(current, {
+      id: nextId('pool'),
+      name,
+    })),
+    allocateBudget: ({ periodId, poolId, amount }) => execute((current) => allocateIncome(current, {
+      id: nextId('allocation'),
+      periodId,
+      poolId,
+      amount,
+    })),
+    createAndSettleStatement: ({ accountId, statementKey, amount, dueOn, allocations }) => execute((current) => {
+      const statementId = nextId('statement');
+      const recorded = recordStatement(current, {
+        id: statementId,
+        accountId,
+        fingerprint: `${accountId.trim()}:${statementKey.trim()}`,
+        amount,
+        dueOn,
+      });
+      return settleStatement(recorded, statementId, allocations.map((allocation) => ({
+        ...allocation,
+        id: nextId('statement-allocation'),
+      })));
+    }),
+    resetAll: () => setLedger(createLedger()),
+  }), [ledger]);
 
   return <BudgetContext.Provider value={value}>{children}</BudgetContext.Provider>;
 }
@@ -102,4 +96,18 @@ export function useBudget() {
 
 export function formatCents(amount: number) {
   return new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY' }).format(amount / 100);
+}
+
+export function parseYuan(value: string) {
+  const normalized = value.trim().replace(/,/g, '');
+  if (!/^\d+(\.\d{1,2})?$/.test(normalized)) return undefined;
+  const cents = Math.round(Number(normalized) * 100);
+  return Number.isSafeInteger(cents) && cents > 0 ? cents : undefined;
+}
+
+export function toIsoDate(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
