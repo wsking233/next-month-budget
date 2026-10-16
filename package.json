@@ -10,9 +10,11 @@
   "scripts": {
     "start": "expo start --clear --go",
     "go": "expo start --clear --go",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "build:ios": "expo export --platform ios --output-dir dist-ios",
-    "check": "pnpm typecheck && expo install --check"
+    "check": "pnpm test && pnpm typecheck && expo install --check"
   },
   "dependencies": {
     "@expo/ui": "~57.0.25",
@@ -32,6 +34,7 @@
   "devDependencies": {
     "@react-native/metro-config": "0.86.3",
     "@types/react": "~19.2.2",
-    "typescript": "~6.0.3"
+    "typescript": "~6.0.3",
+    "vitest": "^5.0.4"
   }
 }
