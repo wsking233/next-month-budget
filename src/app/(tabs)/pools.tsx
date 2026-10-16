@@ -18,8 +18,8 @@ export default function PoolsScreen() {
 
   return (
     <NativeScreen
-      title="资金池"
-      description="正余额和负余额都会跨期保留，不会自动从其他资金池补足。"
+      title="资金池管理"
+      description="低频管理页面。正余额和负余额都会跨期保留，不会自动从其他资金池补足。"
       sections={sections}
       actions={[
         {

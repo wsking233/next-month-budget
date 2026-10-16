@@ -7,7 +7,7 @@ export default function RootLayout() {
     <BudgetProvider>
       <Stack>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="settings" options={{ title: '偏好设置' }} />
+      <Stack.Screen name="settings" options={{ title: '设置与管理' }} />
       <Stack.Screen name="backup" options={{ title: '备份与恢复' }} />
       <Stack.Screen name="about" options={{ title: '关于下月再说' }} />
       </Stack>

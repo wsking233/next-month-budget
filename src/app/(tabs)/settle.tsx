@@ -21,8 +21,9 @@ export default function SettleScreen() {
       description="结算扣减消费预算；实际还信用卡不会再次扣减预算。"
       sections={sections}
       actions={[{
-        label: '新建并结算账单',
-        systemImage: 'doc.badge.plus',
+        label: '结算新账单',
+        systemImage: 'creditcard.fill',
+        prominent: true,
         disabled: ledger.periods.length === 0 || ledger.pools.length === 0,
         onPress: () => router.push('/statement/new' as Href),
       }]}

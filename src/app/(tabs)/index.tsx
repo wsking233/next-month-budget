@@ -11,33 +11,43 @@ export default function HomeScreen() {
     ? ledger.pools.reduce((sum, pool) => sum + getPoolBalance(ledger, pool.id, latestPeriod.id), 0)
     : 0;
   const pending = ledger.statements.filter((statement) => statement.status === 'recorded').length;
+  const isReady = Boolean(latestPeriod && ledger.pools.length);
 
   return (
     <NativeScreen
-      title="本期总览"
-      description="数据目前只保存在内存，重启应用后会重置。"
+      title="本期预算"
+      description={latestPeriod ? `${latestPeriod.startsOn} — ${latestPeriod.endsOn}` : '先完成一次初始设置，之后只需回来查看和结算。'}
       sections={[
         {
-          title: '当前周期',
-          value: latestPeriod ? `${latestPeriod.startsOn} — ${latestPeriod.endsOn}` : '尚未建立',
-          description: latestPeriod ? `${ledger.pools.length} 个资金池` : '先建立预算周期，再创建资金池和拨款。',
-        },
-        {
-          title: '预算可用总额',
+          title: '可用预算',
           value: formatCents(available),
-          description: '这是预算余额汇总，不代表银行账户可提现现金。',
+          description: latestPeriod ? `${ledger.pools.length} 个资金池，点击查看余额` : '尚未完成初始设置',
+          status: '预算额度，不代表银行账户现金',
+          systemImage: 'chart.pie.fill' as const,
+          onPress: isReady ? () => router.push('/(tabs)/pools' as Href) : () => router.push('/settings' as Href),
         },
         {
-          title: '待处理账单',
+          title: '账单状态',
           value: `${pending} 项`,
           description: pending ? '存在已登记但尚未完成分配的账单。' : '当前没有待结算账单。',
+          systemImage: pending ? 'exclamationmark.circle.fill' as const : 'checkmark.circle.fill' as const,
+          onPress: () => router.push('/(tabs)/settle' as Href),
         },
       ]}
-      actions={latestPeriod ? [] : [{
-        label: '建立第一个预算周期',
-        systemImage: 'calendar.badge.plus',
-        onPress: () => router.push('/period/new' as Href),
-      }]}
+      actions={[
+        {
+          label: '结算新账单',
+          systemImage: 'creditcard.fill',
+          prominent: true,
+          disabled: !isReady,
+          onPress: () => router.push('/statement/new' as Href),
+        },
+        {
+          label: isReady ? '设置与管理' : '完成初始设置',
+          systemImage: 'gearshape',
+          onPress: () => router.push('/settings' as Href),
+        },
+      ]}
     />
   );
 }

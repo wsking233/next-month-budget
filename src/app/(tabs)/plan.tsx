@@ -17,8 +17,8 @@ export default function PlanScreen() {
 
   return (
     <NativeScreen
-      title="未来计划"
-      description="先建立周期，再在资金池页进行本期拨款。"
+      title="预算周期"
+      description="低频设置页面。建立周期后，再到资金池管理中拨款。"
       sections={sections}
       actions={[{
         label: '新建预算周期',
