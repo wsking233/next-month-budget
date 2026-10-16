@@ -1,17 +1,21 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { NativeScreen } from '@/ui/NativeScreen';
 
 export default function AboutScreen() {
   return (
-    <View style={styles.page}>
-      <Text style={styles.title}>下月再说</Text>
-      <Text style={styles.body}>一款离线优先的个人预算资金池工具，关注每期预算和多张信用卡账单的分类结算。</Text>
-      <Text style={styles.body}>当前为框架初始化阶段。发薪周期、默认归属、退款及更正规则仍需验证，暂不进行预算计算或存储个人数据。</Text>
-    </View>
+    <NativeScreen
+      title="下月再说"
+      description="想花就花，有数就行。"
+      sections={[
+        {
+          title: '这是什么',
+          description: '一款离线优先、移动端优先的个人预算资金池工具。它关注每期预算与集中结算，不要求逐笔记账。',
+        },
+        {
+          title: '当前阶段',
+          description: '基础页面与导航已建立，业务规则、预算计算和本地存储仍在逐步验证与实现。',
+          status: '开发中',
+        },
+      ]}
+    />
   );
 }
-
-const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: '#F5F6F1', padding: 28, gap: 24 },
-  title: { fontSize: 28, fontWeight: '700', color: '#183A2D' },
-  body: { maxWidth: 640, fontSize: 16, lineHeight: 28, color: '#435449' },
-});

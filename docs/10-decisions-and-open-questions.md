@@ -12,6 +12,7 @@
 - 首版移动端iOS优先，React Native + Expo + TypeScript，本地优先。
 - 最初 GitHub 初始化仅包含文档；2026-10-16 用户进一步授权同步本地并初始化可编译、可启动调试的工程框架。
 - 工程按用户最新要求采用 Expo SDK 57 + TypeScript + Expo Router 57；此前指定的 SDK 54 目标已更正为 SDK 57。业务实现及 SQLite 存储留待规则验证后推进。
+- 2026-10-16 明确当前仅建设 iOS：删除 Web/Android 预览入口，以 iPhone 真机为唯一界面验收环境；系统可表达的界面优先使用 Expo Router 原生导航与 `@expo/ui` SwiftUI 组件，不自行仿制系统控件。
 
 ## 临时建议，尚未正式确认
 - 发薪日作预算周期起始日（示例为每月10日）。

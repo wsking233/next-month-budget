@@ -15,23 +15,21 @@
 
 ```powershell
 .\tools.cmd install --frozen-lockfile
-npm run web
+npm run go
 ```
 
-浏览器打开 `http://localhost:8081`，修改 `src/app/index.tsx` 可热更新。端口被占用时以终端提示为准。
-已有正常 Node/pnpm 环境时，可以直接运行 `pnpm install --frozen-lockfile`、`pnpm web`。
+iPhone 安装支持 SDK 57 的 Expo Go，电脑与手机连接同一局域网，然后扫描终端二维码。项目不提供 Web 或 Android 预览入口，所有界面以 iPhone 真机表现为准。
+已有正常 Node/pnpm 环境时，可以直接运行 `pnpm install --frozen-lockfile`、`pnpm go`。
 
 ```powershell
 npm run typecheck       # TypeScript 检查
-npm run build           # Web 静态编译，输出 dist/
 npm run build:ios       # iOS JS/Hermes 打包验证，不是签名安装包
 npm run start           # Metro 开发服务，供兼容 SDK 的 Expo Go 连接
 npm run go              # 清理缓存并启动 SDK 57 Expo Go 调试
 ```
 
-Web 调试：先启动 Web，再在 VS Code 选择项目自带的 Chrome 调试配置，设置断点或使用浏览器开发者工具。
-原生调试：iPhone 使用支持 SDK 57 的 Expo Go，电脑与手机连接同一局域网，运行 `npm run go` 后用手机扫描终端二维码；终端按 `j` 打开 React Native DevTools。`npm run web` 的 localhost 地址只用于电脑浏览器预览。
-Windows 无法运行 iOS 模拟器或在本机编译签名 IPA；iPhone 真机安装和原生能力仍需单独验证。
+真机调试：运行 `npm run go` 后用 iPhone 扫描终端二维码；终端按 `j` 打开 React Native DevTools。
+Windows 无法运行 iOS 模拟器或在本机编译签名 IPA；`build:ios` 只验证 JavaScript/Hermes 包。完整独立安装包需使用 EAS 或 macOS + Xcode 构建。
 Expo 工作流见 [官方开发说明](https://docs.expo.dev/get-started/start-developing/)。
 
 ### 工程目录
@@ -58,7 +56,7 @@ Expo 工作流见 [官方开发说明](https://docs.expo.dev/get-started/start-d
 5. 离线、本地优先、数据备份恢复。
 
 ## 技术方向
-iOS 为主要使用平台；React Native + Expo + TypeScript，Expo Router，本地存储优先 Expo SQLite。Web 用于辅助预览。首版不需要后端、银行自动同步或商业化功能。
+iOS 是当前唯一目标平台；React Native + Expo + TypeScript，Expo Router，本地存储优先 Expo SQLite。导航使用 iOS 原生系统组件，常用界面控件优先使用 `@expo/ui` 暴露的 SwiftUI 组件。首版不提供 Web/Android 适配，也不需要后端、银行自动同步或商业化功能。
 
 ## 文档索引
 | 文档 | 内容 |

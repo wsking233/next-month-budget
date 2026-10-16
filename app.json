@@ -4,9 +4,9 @@
     "slug": "next-month-budget",
     "version": "0.1.0",
     "scheme": "nextmonthbudget",
+    "platforms": ["ios"],
     "orientation": "portrait",
-    "userInterfaceStyle": "light",
-    "web": { "output": "single" },
+    "userInterfaceStyle": "automatic",
     "plugins": ["expo-router"],
     "experiments": { "typedRoutes": true }
   }
