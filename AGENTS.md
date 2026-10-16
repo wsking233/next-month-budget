@@ -4,7 +4,7 @@
 本项目叫“下月再说”，是一款自用优先、移动端优先的个人预算资金池管理工具。核心不是逐笔记账，而是每期收入预算分配与多信用卡账单总额的分类结算。
 
 ## 本仓库当前状态
-仅有产品规划 Markdown 文档。**没有得到明确开发请求之前，不得自行搭建应用、安装依赖、生成业务代码或配置服务。**
+2026-10-16 用户已明确要求同步仓库并初始化可本地编译、启动调试的项目框架。现有 Expo + React Native + TypeScript + Expo Router 最小工程，业务规则仍在验证阶段；本次授权范围为工程初始化，不包含完整业务实现或服务端配置。
 
 ## 工作原则
 1. 先读 README.md、docs/02-requirements-prd.md、docs/03-budget-business-rules.md、docs/04-credit-card-settlement.md、docs/10-decisions-and-open-questions.md。
@@ -16,7 +16,7 @@
 7. 不在仓库提交真实个人财务数据、卡号、密钥或凭据。
 8. 在实现之前，为资金池负值结转、跨期归属、调拨原子性、取消/更正、防重复等设计测试案例。
 
-## 计划技术栈（开发获批后）
+## 技术栈
 React Native + Expo + TypeScript、Expo Router、Expo SQLite；iOS优先，Web辅助预览；预算领域逻辑独立于UI和数据库。
 
 ## 变更文档规范

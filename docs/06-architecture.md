@@ -22,5 +22,7 @@
 6. 备份要有可恢复性测试、格式版本与完整性校验。
 7. 避免日志、分析、错误报告泄露个人财务细节。
 
-## 不在本阶段做
-无应用源码、无依赖安装、无CI/CD、无环境密钥、无服务器资源。
+## 当前工程范围（2026-10-16）
+用户已授权工程初始化：按用户最新要求采用 Expo SDK 57、React Native 0.86、React 19.2、TypeScript 及 Expo Router 57，提供 Web 开发服务和静态导出、iOS JavaScript 打包命令及 VS Code Web 调试配置。此前的 SDK 54 目标已由用户更正为 SDK 57。
+`src/domain` 与 `src/data` 预留分层；本次不实现领域计算和数据库，Expo SQLite 在实现持久化时接入。
+没有 CI/CD、环境密钥或服务器资源。Web 及 iOS JS 打包不能替代 iPhone 真机验收。
