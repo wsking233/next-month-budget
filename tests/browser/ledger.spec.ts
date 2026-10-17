@@ -26,12 +26,12 @@ async function fund(page: Page, pool: string, value: string) {
 const poolCard = (page: Page, name: string) => page.getByRole('article').filter({ has: page.getByRole('heading', { name, exact: true }) });
 
 for (const width of [375, 768, 1440]) {
-  test(`${width}px 领域结算、跨期更正、撤销、独立演示与刷新隔离`, async ({ page }) => {
+  test(`${width}px 领域结算、跨期更正、撤销、独立演示与本地恢复`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     const errors: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
     await page.goto('./#/');
-    await expect(page.getByText('内存账本 · 尚未保存，刷新即丢失')).toBeVisible();
+    await expect(page.getByText('本地账本 · 自动保存在此浏览器')).toBeVisible();
     await addPool(page, '我的测试池');
     await page.getByRole('button', { name: '查看独立演示' }).click();
     for (const title of ['资金池', '账单', '预算计划', '历史记录', '设置', '概览']) {
@@ -90,12 +90,13 @@ for (const width of [375, 768, 1440]) {
     await expect(page.getByText(/原分配：.*日常生活.*新分配：.*数码兴趣/).filter({ visible: true })).toBeVisible();
     await page.getByLabel('搜索记录').fill('不存在');
     await expect(page.getByText('暂时没有匹配的记录')).toBeVisible();
-    await page.getByRole('button', { name: '返回内存账本' }).click();
+    await page.getByRole('button', { name: '返回本地账本' }).click();
     await navigate(page, '资金池');
     await expect(poolCard(page, '我的测试池')).toBeVisible();
     await expect(poolCard(page, '日常生活')).toHaveCount(0);
     await page.reload();
-    await expect(page.getByText('给生活留一个预算空间')).toBeVisible();
+    await expect(poolCard(page, '我的测试池')).toBeVisible();
+    await expect(poolCard(page, '日常生活')).toHaveCount(0);
     expect(errors).toEqual([]);
   });
 }

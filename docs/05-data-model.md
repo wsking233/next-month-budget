@@ -36,3 +36,11 @@
 `src/domain/budget.ts` 的 BudgetLedger 持有 periods、pools、statements、entries、audit。BudgetPeriod 可带显示名称；Statement 带账单日、账户名称标识和账户内去重标识。AuditEvent 保留操作时间、主体 ID、当时资料描述及原因，描述包含结算/更正的分配明细。
 
 余额来自按周期累计的 BudgetEntry，而非 UI 状态缓存；调拨为成对流水，更正和撤销为追加冲销流水。Zustand 分别持有用户与演示两份内存工作区及所选周期。当前没有持久化 schema、账号、云数据库或还款实体实现；其他概念实体继续按后续阶段推进。
+
+## Phase 4 快照格式与存储
+
+稳定存储键为 `next-month-budget:ledger`，键内 JSON 使用 `format: next-month-budget`、`schemaVersion: 1`、`savedAt` 和 `workspace`（ledger、currentPeriod）；导出的备份另含 `exportedAt`。时间为 ISO UTC，金额为整数分。演示工作区、主题和错误提示不进入快照。
+
+`src/storage/snapshot.ts` 定义严格 Schema 与账务校验；`repository.ts` 实现读取、校验与写入接口。首版上限 2 MB，未知版本拒绝，未设置旧版本自动迁移。读取失败时原始字符串保留；操作保存成功后才发布状态。备份校验能检测结构及账务不一致，不是签名或加密，无法保证人为改写文件的真实性。
+
+本地写入前比较已读取的原始值，配合 storage 事件检测其他标签页更新；这不构成跨标签页事务，避免多标签页同时编辑。浏览器单键写入失败会保留原值，不调用全站 localStorage.clear。
