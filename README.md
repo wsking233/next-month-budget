@@ -38,3 +38,8 @@
 ## 下一阶段
 
 在保留并复核现有领域规则的基础上，重新初始化 React + TypeScript Web 工程；先完成跨屏幕尺寸的布局、路由、基础页面骨架，再逐步接入业务逻辑与持久化。旧 Expo 工程完整保存在归档分支，避免历史代码丢失。
+
+## 云开发环境
+
+见 [云开发环境准备](docs/14-cloud-development.md)。支持 Dev Container / Codespaces 自动安装；其他平台选择 Node.js 24 LTS + npm 11，安装命令使用 `bash scripts/setup.sh`。当前可执行 `npm run check` 验证领域模型，Web 开发服务将在 Phase 1 搭建。
+
