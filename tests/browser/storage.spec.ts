@@ -15,7 +15,7 @@ async function stored(page: Page) { return page.evaluate(storageKey => localStor
 const heading = (page: Page, name: string) => page.getByRole('heading', { name, exact: true });
 
 for (const width of [375, 768, 1440]) {
-  test(`${width}px 本地保存、关闭重开、导出恢复与取消覆盖`, async ({ page, context }) => {
+  test(`${width}px 本地保存、关闭重开、导出恢复与取消覆盖`, async ({ page, context }, testInfo) => {
     await page.setViewportSize({ width, height: 900 });
     await page.goto('./#/');
     await addPool(page, '备份中的资金池');
@@ -61,7 +61,7 @@ for (const width of [375, 768, 1440]) {
     expect(await stored(page)).toBe(before);
     await upload(page, raw);
     expect(await modal.evaluate(el => el.scrollWidth <= el.clientWidth)).toBeTruthy();
-    await page.screenshot({ path: `test-results/restore-${width}.png`, fullPage: true });
+    await page.screenshot({ path: testInfo.outputPath(`restore-${width}.png`), fullPage: true });
     await page.getByRole('button', { name: '确认覆盖并恢复' }).click();
     await expect(page.getByText('备份已恢复并保存到此浏览器。')).toBeVisible();
     expect(JSON.parse((await stored(page))!).workspace).toEqual(backup.workspace);

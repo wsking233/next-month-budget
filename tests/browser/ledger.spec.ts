@@ -26,7 +26,7 @@ async function fund(page: Page, pool: string, value: string) {
 const poolCard = (page: Page, name: string) => page.getByRole('article').filter({ has: page.getByRole('heading', { name, exact: true }) });
 
 for (const width of [375, 768, 1440]) {
-  test(`${width}px 领域结算、跨期更正、撤销、独立演示与本地恢复`, async ({ page }) => {
+  test(`${width}px 领域结算、跨期更正、撤销、独立演示与本地恢复`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width, height: 900 });
     const errors: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
@@ -37,7 +37,7 @@ for (const width of [375, 768, 1440]) {
     for (const title of ['资金池', '账单', '预算计划', '历史记录', '设置', '概览']) {
       await navigate(page, title);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
-      await page.screenshot({ path: `test-results/ledger-${width}-${title}.png`, fullPage: true });
+      await page.screenshot({ path: testInfo.outputPath(`ledger-${width}-${title}.png`), fullPage: true });
     }
     await navigate(page, '账单');
     await page.getByRole('button', { name: '拆分核对' }).first().click();

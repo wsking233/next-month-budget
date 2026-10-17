@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 for (const width of [375, 768, 1440]) {
-  test(`${width}px 统计账本一致，负结转及只读预测不写入本地`, async ({ page }) => {
+  test(`${width}px 统计账本一致，负结转及只读预测不写入本地`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width, height: 900 });
     await page.goto('./#/pools');
     await page.getByRole('button', { name: '创建资金池', exact: true }).click();
@@ -24,7 +24,7 @@ for (const width of [375, 768, 1440]) {
     await page.getByLabel('趋势资金池').selectOption('digital');
     await expect(page.getByRole('img', { name: '预算期末余额趋势；精确金额见下方周期明细' })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
-    await page.screenshot({ path: `test-results/statistics-${width}.png`, fullPage: true });
+    await page.screenshot({ path: testInfo.outputPath(`statistics-${width}.png`), fullPage: true });
     await nav.getByRole('link', { name: '预算计划', exact: true }).click();
     await expect(page.getByText('模拟结果 · 未保存，未创建周期或账务流水。结果不代表现金、储蓄或实际可还款金额。')).toHaveCount(0);
     await page.getByLabel('数码兴趣 · 每期额外拨款（元）').fill('200.001');
@@ -37,7 +37,7 @@ for (const width of [375, 768, 1440]) {
     await expect(page.getByText('数码兴趣 · ¥0.00', { exact: true })).toBeVisible();
     expect(await page.evaluate(() => localStorage.getItem('next-month-budget:ledger'))).toBe(original);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
-    await page.screenshot({ path: `test-results/forecast-${width}.png`, fullPage: true });
+    await page.screenshot({ path: testInfo.outputPath(`forecast-${width}.png`), fullPage: true });
     await page.getByLabel('模拟周期数').selectOption('1');
     await expect(page.getByText('数码兴趣 · -¥400.00', { exact: true })).toHaveCount(0);
     await page.reload();

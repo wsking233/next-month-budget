@@ -6,7 +6,7 @@ const routes = [
 ];
 
 for (const width of [375, 768, 1440]) {
-  test(`${width}px 路由、主题与布局`, async ({ page }) => {
+  test(`${width}px 路由、主题与布局`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width, height: 900 });
     const errors: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));
@@ -31,6 +31,6 @@ for (const width of [375, 768, 1440]) {
     await page.getByRole('navigation').getByRole('link', { name: '资金池', exact: true }).click();
     await expect(page.getByRole('heading', { name: '资金池', exact: true })).toBeVisible();
     expect(errors).toEqual([]);
-    await page.screenshot({ path: `test-results/shell-${width}.png`, fullPage: true });
+    await page.screenshot({ path: testInfo.outputPath(`shell-${width}.png`), fullPage: true });
   });
 }

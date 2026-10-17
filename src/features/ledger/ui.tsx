@@ -24,7 +24,13 @@ export function Modal({ title, children, close }: { title: string; children: Rea
     const dialog = ref.current!;
     const trigger = document.activeElement as HTMLElement | null;
     dialog.showModal();
-    return () => { dialog.close(); trigger?.focus(); };
+    return () => { dialog.close(); if (trigger?.isConnected) trigger.focus(); else document.getElementById('main-content')?.focus(); };
   }, []);
-  return <dialog ref={ref} aria-labelledby={titleId} onCancel={close} className="demo-dialog"><div className="flex items-center justify-between gap-4 border-b border-border p-5"><h2 id={titleId} className="text-lg font-semibold">{title}</h2><Button variant="ghost" size="icon" aria-label="关闭弹窗" onClick={close}><X aria-hidden="true" /></Button></div><div className="p-5 sm:p-6"><p className="mb-5 rounded-lg bg-muted p-3 text-xs leading-6 text-muted-foreground">本地账本在保存成功后才应用操作；独立演示账本不会写入本地。</p>{children}</div></dialog>;
+  return <dialog ref={ref} aria-labelledby={titleId} onCancel={close} onKeyDown={event => {
+    if (event.key !== 'Tab') return;
+    const controls = [...event.currentTarget.querySelectorAll<HTMLElement>('a[href],button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled),[tabindex]:not([tabindex="-1"])')].filter(el => el.getClientRects().length > 0);
+    const first = controls[0], last = controls.at(-1);
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+  }} className="demo-dialog"><div className="flex items-center justify-between gap-4 border-b border-border p-5"><h2 id={titleId} className="text-lg font-semibold">{title}</h2><Button variant="ghost" size="icon" aria-label="关闭弹窗" onClick={close}><X aria-hidden="true" /></Button></div><div className="p-5 sm:p-6"><p className="mb-5 rounded-lg bg-muted p-3 text-xs leading-6 text-muted-foreground">本地账本在保存成功后才应用操作；独立演示账本不会写入本地。</p>{children}</div></dialog>;
 }

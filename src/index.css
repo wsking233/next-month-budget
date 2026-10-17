@@ -9,7 +9,7 @@
   --foreground: #263a33;
   --card: #ffffff;
   --muted: #edf0e9;
-  --muted-foreground: #64736a;
+  --muted-foreground: #58675e;
   --primary: #315d49;
   --primary-foreground: #ffffff;
   --accent: #e3eddf;
@@ -50,7 +50,7 @@
 }
 
 * { box-sizing: border-box; }
-body { margin: 0; min-width: 320px; }
+body { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 button, a { -webkit-tap-highlight-color: transparent; }
 button { cursor: pointer; }
 a:focus-visible { outline: 2px solid var(--ring); outline-offset: 4px; }
@@ -64,3 +64,5 @@ a:focus-visible { outline: 2px solid var(--ring); outline-offset: 4px; }
 .demo-dialog { width: min(42rem, calc(100% - 2rem)); max-height: calc(100dvh - 2rem); padding: 0; margin: auto; overflow-y: auto; border: 1px solid var(--border); border-radius: 1.25rem; background: var(--card); color: var(--foreground); }
 .demo-dialog::backdrop { background: rgb(0 0 0 / 45%); }
 .money { font-variant-numeric: tabular-nums; letter-spacing: -0.025em; }
+
+.break-words { overflow-wrap: anywhere; }

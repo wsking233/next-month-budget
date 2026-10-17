@@ -188,3 +188,17 @@ describe('审计可追溯与累计精度', () => {
     expect(() => recordStatement(ledger, { id: 'extra-bill', accountId: 'b', fingerprint: 'b', amount: 1, dueOn: '2027-02-01' })).toThrow(/安全/);
   });
 });
+
+it('无流水资金池可直接停用；已冲销且净额归零的未来历史不阻止停用', () => {
+  let unused = createBudgetPool(createLedger(), { id: 'unused', name: '未使用' });
+  unused = updateBudgetPool(unused, 'unused', '未使用', false, '');
+  expect(unused.pools[0].active).toBe(false);
+  let ledger = baseLedger();
+  ledger = recordStatement(ledger, { id: 'future-bill', accountId: 'a', fingerprint: 'f', amount: 100, dueOn: '2027-03-01' });
+  ledger = settleStatement(ledger, 'future-bill', [{ id: 'allocation', poolId: 'daily', periodId: february.id, amount: 100 }]);
+  expect(() => updateBudgetPool(ledger, 'daily', '日常', false, january.id)).toThrow(/未来/);
+  ledger = cancelSettlement(ledger, 'future-bill', '取消未来安排');
+  const closed = updateBudgetPool(ledger, 'daily', '日常', false, january.id);
+  expect(closed.pools[0].active).toBe(false);
+  expect(closed.entries).toEqual(ledger.entries);
+});

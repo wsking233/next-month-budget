@@ -299,9 +299,13 @@ function assertIsoDate(value: string, label: string) {
 export function updateBudgetPool(ledger: BudgetLedger, poolId: string, name: string, active: boolean, throughPeriodId: string): BudgetLedger {
   const pool = requirePool(ledger, poolId);
   assertPoolName(ledger, name, poolId);
-  if (pool.active && !active) {
+  if (pool.active && !active && ledger.entries.some(entry => entry.poolId === poolId)) {
     const period = requirePeriod(ledger, throughPeriodId);
-    if (ledger.entries.some(entry => entry.poolId === poolId && requirePeriod(ledger, entry.periodId).startsOn > period.startsOn)) throw new Error('请先处理未来周期的资金池安排');
+    const future = ledger.periods.filter(p => p.startsOn > period.startsOn);
+    const futureIds = new Set(future.map(p => p.id));
+    const hasAllocations = ledger.statements.some(s => s.status === 'settled' && s.allocations.some(a => a.poolId === poolId && futureIds.has(a.periodId)));
+    const hasMovement = future.some(p => ledger.entries.filter(e => e.poolId === poolId && e.periodId === p.id).reduce((sum, e) => sum + BigInt(e.amount), 0n) !== 0n);
+    if (hasAllocations || hasMovement) throw new Error('请先处理未来周期的资金池安排');
     if (getPoolBalance(ledger, poolId, throughPeriodId) !== 0) throw new Error('资金池余额须先清零，才能停用');
   }
   return { ...ledger, pools: ledger.pools.map(p => p.id === poolId ? { ...p, name: name.trim(), active } : p), audit: appendAudit(ledger, 'pool_updated', poolId, undefined, `${pool.name} → ${name.trim()} · ${active ? '启用' : '停用'}；历史流水保留`) };

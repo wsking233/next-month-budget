@@ -1,6 +1,6 @@
 {
   "name": "next-month-budget",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -17,9 +17,11 @@
     "build": "npm run typecheck && vite build",
     "preview": "vite preview",
     "lint": "eslint .",
-    "test:browser": "playwright test"
+    "test:browser": "playwright test --project=chromium",
+    "test:browser:all": "playwright test"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
     "@eslint/js": "9.39.5",
     "@playwright/test": "1.64.1",
     "@tailwindcss/vite": "4.3.3",
