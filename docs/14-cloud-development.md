@@ -34,4 +34,4 @@ Phase 1 的页面为空骨架，没有财务输入和账本保存；主题切换
 
 `npm run check` 检查代码与构建；`npm run test:browser` 需要额外安装 Playwright Chromium，验收 375 / 768 / 1440px 路由、布局和主题。普通安装脚本不下载浏览器或安装系统依赖。
 
-Dev Container 镜像拉取及 Codespaces 生命周期尚未在实际平台创建验证。脚本和 Web 服务验证不代表已经创建新的云环境。静态生产托管需配置 SPA fallback 到 `index.html`。
+Dev Container 镜像拉取及 Codespaces 生命周期尚未在实际平台创建验证。脚本和 Web 服务验证不代表已经创建新的云环境。GitHub Pages 使用 Hash 路由（如 `/#/pools`）和相对资源路径，无需 SPA fallback；CI/CD 设置见 README。

@@ -38,10 +38,19 @@ npm run preview        # 在 0.0.0.0:4173 预览构建结果
 
 ```bash
 npx playwright install --with-deps chromium
+npm run build
 npm run test:browser
 ```
 
-`dist/` 是普通静态站点。正式托管需要配置 SPA fallback：未匹配静态文件的页面请求回退到 `index.html`，以支持 `/pools` 等深层链接。Vite 开发/预览服务自带该行为；`preview` 仅用于验证构建。
+`dist/` 是普通静态站点，资源使用相对路径，Hash 路由支持 GitHub Pages 的仓库子路径和刷新访问，例如 `/next-month-budget/#/pools`，无需 SPA fallback。
+
+## CI/CD 与 GitHub Pages
+
+仅在 `main` 分支开发、测试和发布。推送 `main` 或手动运行 `Check and deploy Pages` 后，GitHub Actions 依次安装锁定依赖、执行 ESLint / 类型检查 / 单元测试 / 构建，并在生产构建上执行三种屏幕宽度的 Chromium 验收。全部通过后上传 Pages artifact 并部署；不创建 `gh-pages` 分支，无需个人访问令牌。
+
+仓库管理员需在 **Settings → Pages → Build and deployment → Source** 选择 **GitHub Actions**，并允许仓库运行 Actions。发布地址为 https://wsking233.github.io/next-month-budget/ 。部署结果以 Actions 的 `deploy` 作业和 `github-pages` environment 为准。
+
+浏览器测试使用 `npm run preview`，请先构建；CI 会自动构建并安装 Chromium。失败时可在 Actions 下载 `browser-test-results`。
 
 ## 项目结构
 

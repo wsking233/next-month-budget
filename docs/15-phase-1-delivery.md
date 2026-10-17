@@ -22,7 +22,7 @@
 - 完整运行 `bash scripts/setup.sh`：npm ci、ESLint、TypeScript、13 项领域/界面测试及生产构建通过。
 - 原有领域测试 5 项全部通过；领域文件内容与原仓库 blob SHA 一致。
 - Playwright Chromium：375 / 768 / 1440px 三组浏览器验收通过，覆盖六个直接访问路由、导航、404 返回、深浅主题与无横向溢出；无页面 JavaScript 错误。
-- `npm run dev` 可启动 5173 服务；`npm run preview` 可启动 4173 服务；预览首页与深层路径均返回 SPA 入口。
+- `npm run dev` 可启动 5173 服务；`npm run preview` 可启动 4173 服务；使用 Hash 路由访问及刷新子页面。
 - 已查看移动端与桌面截图。构建输出位于 dist/，不提交生成文件、node_modules 或验收截图。
 
 ## 手动验收步骤
@@ -38,5 +38,5 @@
 
 - 尚未在实际 Dev Container / Codespaces 上拉取镜像和验证生命周期。
 - 本次只实现 Phase 1；资金池、账单等页面为空骨架，不能录入或保存真实财务数据。
-- 主题选择不持久化。静态生产托管需设置 SPA fallback；尚未选择或部署托管平台。
+- 主题选择不持久化。静态生产托管采用 GitHub Pages，Hash 路由无需 SPA fallback；自动部署配置见 README，线上状态以 GitHub Actions 为准。
 - 后续阶段等待明确指令，不自动进入 Phase 2。
