@@ -6,7 +6,7 @@
 
 ## 当前状态（2026-10-17）
 
-**产品规划与领域模型阶段。** 已清理旧 Expo / React Native / iOS 工程、导航界面、构建脚本和平台限定计划。暂不包含可运行的 Web 前端、Node 工程或本地存储实现。
+**产品规划与领域模型阶段。** 已清理旧 Expo / React Native / iOS 工程、导航界面、构建脚本和平台限定计划。暂不包含可运行的 Web 前端或本地存储实现。已补齐云开发环境和领域测试的 Node 工程配置，尚未执行完整 Phase 1。
 
 新开发方向：**标准 React + TypeScript Web App**，Web 优先，以响应式布局适配手机、平板和桌面浏览器。后续需要离线能力时再评估 PWA / 浏览器持久化方案，不提前绑定具体部署、数据库或组件库。
 
@@ -38,3 +38,7 @@
 ## 下一阶段
 
 在保留并复核现有领域规则的基础上，重新初始化 React + TypeScript Web 工程；先完成跨屏幕尺寸的布局、路由、基础页面骨架，再逐步接入业务逻辑与持久化。旧 Expo 工程完整保存在归档分支，避免历史代码丢失。
+
+## 云开发环境
+
+见 [云开发环境准备](docs/14-cloud-development.md)。支持 Dev Container / Codespaces 自动安装；其他平台选择 Node.js 24 LTS + npm 11，安装命令使用 `bash scripts/setup.sh`。当前可执行 `npm run check` 验证领域模型，Web 开发服务将在 Phase 1 搭建。

@@ -1,0 +1,28 @@
+{
+  "name": "next-month-budget",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:1-24-bookworm",
+  "remoteUser": "node",
+  "postCreateCommand": "bash scripts/setup.sh",
+  "forwardPorts": [
+    5173,
+    4173
+  ],
+  "portsAttributes": {
+    "4173": {
+      "label": "Vite preview",
+      "onAutoForward": "notify"
+    },
+    "5173": {
+      "label": "Vite development",
+      "onAutoForward": "notify"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "bradlc.vscode-tailwindcss"
+      ]
+    }
+  }
+}
