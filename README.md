@@ -6,9 +6,9 @@
 
 ## 当前状态
 
-Phase 4 本地保存与备份已实现：账务操作自动保存到当前浏览器，刷新和关闭重开可恢复；支持 JSON 导出、严格校验导入与覆盖确认。保留周期、资金池、拨款、账单结算、调拨、更正、撤销及审计闭环，演示样例与本地账本隔离。
+Phase 5 统计与预算规划已实现：概览提供预算收支桥梁、结转趋势、多周期对比与拨款分布；预算计划提供手工假设驱动的只读模拟。账务操作自动保存到当前浏览器，刷新和关闭重开可恢复；支持 JSON 导出、严格校验导入与覆盖确认。保留周期、资金池、拨款、账单结算、调拨、更正、撤销及审计闭环，演示样例与本地账本隔离。
 
-数据仅在此浏览器保存，不跨设备同步；清理站点数据、隐私模式或换设备可能丢失，请定期导出备份。备份是未加密 JSON，需妥善保管。没有登录、后端、云同步或银行数据接入。Phase 5 统计规划及后续阶段未实施。
+数据仅在此浏览器保存，不跨设备同步；清理站点数据、隐私模式或换设备可能丢失，请定期导出备份。备份是未加密 JSON，需妥善保管。没有登录、后端、云同步或银行数据接入。Phase 6 质量验收尚未完成。
 
 技术栈：React 19、React Router 7、Vite 8、Tailwind CSS 4、shadcn/ui 组件约定、Zustand；测试使用 Vitest + Testing Library + Playwright。领域层保持纯 TypeScript，账务金额为整数分，汇总使用精确整数运算，UI 显示人民币元。
 
@@ -67,9 +67,10 @@ npm run test:browser
 
 ## 项目结构
 
-- `src/domain/`：纯 TypeScript 预算模型，金额使用整数分，与 UI 和存储解耦
+- `src/domain/`：纯 TypeScript 预算模型与统计/模拟计算，金额使用整数分，与 UI 和存储解耦
 - `src/components/`：响应式布局及 shadcn/ui 风格基础组件
 - `src/features/ledger/`：六个业务页面、表单、Zustand 工作区、保存状态与备份恢复
+- `src/features/planning/`：统计图表、精确明细及只读规划
 - `src/storage/`：版本化快照、Zod / 账务一致性校验与 LocalStorageRepository
 - `src/fixtures/`：主动加载的独立样例账本
 - `src/lib/money.ts`：整数分输入解析与精确金额展示
@@ -91,5 +92,6 @@ npm run test:browser
 - [Phase 2 交付与手动验收](docs/16-phase-2-delivery.md)
 - [Phase 3 交付与手动验收](docs/17-phase-3-delivery.md)
 - [Phase 4 交付与手动验收](docs/18-phase-4-delivery.md)
+- [Phase 5 交付与统计口径](docs/19-phase-5-delivery.md)
 
 预算余额不等于银行现金余额；跨池调拨必须显式留痕。账本自动保存在当前浏览器，主题选择仍只在内存中。按用户约定，日常推送不查询 GitHub Actions 状态 API；仅发布异常时排查。
