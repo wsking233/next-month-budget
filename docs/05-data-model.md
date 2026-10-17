@@ -31,3 +31,8 @@
 
 ## 尚未定案
 这只是领域概念模型，不是最终SQL表结构。是否引入事件溯源、物化余额缓存等，待原型验证及性能需求明确后决定。
+## Phase 3 内存实现补充
+
+`src/domain/budget.ts` 的 BudgetLedger 持有 periods、pools、statements、entries、audit。BudgetPeriod 可带显示名称；Statement 带账单日、账户名称标识和账户内去重标识。AuditEvent 保留操作时间、主体 ID、当时资料描述及原因，描述包含结算/更正的分配明细。
+
+余额来自按周期累计的 BudgetEntry，而非 UI 状态缓存；调拨为成对流水，更正和撤销为追加冲销流水。Zustand 分别持有用户与演示两份内存工作区及所选周期。当前没有持久化 schema、账号、云数据库或还款实体实现；其他概念实体继续按后续阶段推进。

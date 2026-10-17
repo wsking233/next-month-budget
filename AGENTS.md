@@ -13,7 +13,9 @@
 5. 已确认决策、临时假设、待验证问题不得混淆；不要硬编码示例财务数据。
 6. 无需用户授权不得引入服务端、账号体系、真实银行数据。
 7. 业务规则变更同步更新 PRD、业务规则及决策文档。
-8. 阶段计划详见 `docs/13-web-development-roadmap.md`。Phase 2 业务页面与交互原型已实现；未经指定不得提前实施 Phase 3 或后续阶段。
+8. 阶段计划详见 `docs/13-web-development-roadmap.md`。Phase 3 内存账务闭环已实现；未经指定不得提前实施 Phase 4 或后续阶段。
 9. 本地数据采用 localStorage + JSON 备份，不接服务器、远程数据库或登录。
 
 10. 仅保留 main 分支，直接在 main 开发、测试和发布；Pages 使用 Actions artifact，不创建部署分支。
+
+11. 按用户约定，不在日常发布后查询 GitHub Actions 状态 API；只有发布异常需排查时再检查。

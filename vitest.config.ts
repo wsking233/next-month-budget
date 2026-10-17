@@ -7,7 +7,7 @@ export default defineConfig({
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
   test: {
     projects: [
-      { extends: true, test: { name: 'domain', environment: 'node', include: ['src/domain/**/*.test.ts', 'src/prototype/**/*.test.ts'] } },
+      { extends: true, test: { name: 'domain', environment: 'node', include: ['src/**/*.test.ts'] } },
       { extends: true, test: { name: 'ui', environment: 'jsdom', setupFiles: ['./src/test/setup.ts'], include: ['src/**/*.test.tsx'] } },
     ],
   },

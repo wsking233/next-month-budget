@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   allocateIncome,
+  updateBudgetPool,
+  reviseStatement,
   cancelSettlement,
   correctSettlement,
   createBudgetPeriod,
@@ -102,5 +104,87 @@ describe('预算领域规则', () => {
     expect(() => settleStatement(ledger, 'statement-4', [
       { id: 'allocation-4-copy', poolId: 'daily', periodId: january.id, amount: 900_00 },
     ])).toThrow(/已经结算/);
+  });
+});
+
+// Phase 3: regressions required before connecting mutable UI forms.
+describe('内存账务闭环与边界', () => {
+  it('历史更正传播到后续周期，多次更正后撤销仍精确还原且流水 ID 唯一', () => {
+    let ledger = baseLedger();
+    ledger = recordStatement(ledger, { id: 's', accountId: 'a', fingerprint: 'f', amount: 10001, dueOn: '2027-02-01' });
+    ledger = settleStatement(ledger, 's', [{ id: 'x', poolId: 'daily', periodId: january.id, amount: 10001 }]);
+    const before = structuredClone(ledger);
+    expect(() => correctSettlement(ledger, 's', [{ id: 'x', poolId: 'digital', periodId: february.id, amount: 10000 }], '错误')).toThrow();
+    expect(ledger).toEqual(before);
+    ledger = correctSettlement(ledger, 's', [{ id: 'x', poolId: 'digital', periodId: february.id, amount: 10001 }], '移动到次期');
+    expect(getPoolBalance(ledger, 'daily', february.id)).toBe(0);
+    expect(getPoolBalance(ledger, 'digital', january.id)).toBe(0);
+    expect(getPoolBalance(ledger, 'digital', february.id)).toBe(-10001);
+    ledger = correctSettlement(ledger, 's', [{ id: 'x', poolId: 'daily', periodId: january.id, amount: 10001 }], '恢复归属');
+    ledger = cancelSettlement(ledger, 's', '撤销');
+    expect(getPoolBalance(ledger, 'daily', february.id)).toBe(0);
+    expect(getPoolBalance(ledger, 'digital', february.id)).toBe(0);
+    expect(new Set(ledger.entries.map(e => e.id)).size).toBe(ledger.entries.length);
+    expect(ledger.audit.at(-1)?.reason).toBe('撤销');
+    expect(() => cancelSettlement(ledger, 's', '重复')).toThrow();
+  });
+  it('拒绝真实不存在的日期与不安全的累计余额，失败不变', () => {
+    const ledger = baseLedger();
+    expect(() => createBudgetPeriod(ledger, { id: 'bad', startsOn: '2027-02-30', endsOn: '2027-03-01' })).toThrow(/日期/);
+    const funded = allocateIncome(ledger, { id: 'large', poolId: 'daily', periodId: january.id, amount: Number.MAX_SAFE_INTEGER });
+    expect(() => allocateIncome(funded, { id: 'overflow', poolId: 'daily', periodId: january.id, amount: 1 })).toThrow(/安全/);
+    expect(funded.entries).toHaveLength(1);
+  });
+  it('账户内去重，空白规范化，不同账户可使用同一账单标识', () => {
+    let ledger = recordStatement(baseLedger(), { id: 'a', accountId: ' card ', fingerprint: ' f ', amount: 1, dueOn: '2027-02-01' });
+    expect(() => recordStatement(ledger, { id: 'b', accountId: 'card', fingerprint: 'f', amount: 1, dueOn: '2027-02-01' })).toThrow(/重复/);
+    ledger = recordStatement(ledger, { id: 'c', accountId: 'other', fingerprint: 'f', amount: 1, dueOn: '2027-02-01' });
+    expect(ledger.statements).toHaveLength(2);
+  });
+});
+
+describe('资料维护与停用', () => {
+  it('资金池须先清零并处理未来安排；停用不删除历史，停用后不能拨款', () => {
+    let ledger = allocateIncome(baseLedger(), { id: 'fund', poolId: 'daily', periodId: january.id, amount: 100 });
+    expect(() => updateBudgetPool(ledger, 'daily', '日常新名', false, january.id)).toThrow(/余额/);
+    ledger = transferBudget(ledger, { id: 'move', periodId: january.id, fromPoolId: 'daily', toPoolId: 'digital', amount: 100, reason: '清零' });
+    const closed = updateBudgetPool(ledger, 'daily', '日常新名', false, january.id);
+    expect(closed.pools[0].active).toBe(false);
+    expect(closed.entries).toEqual(ledger.entries);
+    expect(() => allocateIncome(closed, { id: 'bad', poolId: 'daily', periodId: january.id, amount: 1 })).toThrow(/停用/);
+    const future = allocateIncome(ledger, { id: 'future', poolId: 'daily', periodId: february.id, amount: 100 });
+    expect(() => updateBudgetPool(future, 'daily', '日常', false, january.id)).toThrow(/未来/);
+  });
+  it('撤销后修改资料重新结算，不重复流水；已结算总额修改需先撤销', () => {
+    let ledger = recordStatement(baseLedger(), { id: 's', accountId: 'card', fingerprint: 'f', amount: 100, dueOn: '2027-02-01' });
+    const allocations = [{ id: 'x', poolId: 'daily', periodId: january.id, amount: 100 }];
+    ledger = settleStatement(ledger, 's', allocations);
+    const patch = { accountId: 'card', fingerprint: 'f', amount: 200, dueOn: '2027-02-01' };
+    expect(() => reviseStatement(ledger, 's', patch, '改总额')).toThrow(/撤销/);
+    ledger = cancelSettlement(ledger, 's', '需改总额');
+    ledger = reviseStatement(ledger, 's', patch, '更正原总额');
+    ledger = settleStatement(ledger, 's', [{ ...allocations[0], amount: 200 }]);
+    expect(getPoolBalance(ledger, 'daily', february.id)).toBe(-200);
+    expect(new Set(ledger.entries.map(e => e.id)).size).toBe(ledger.entries.length);
+    expect(ledger.audit.some(e => e.kind === 'statement_revised' && e.reason === '更正原总额')).toBe(true);
+  });
+});
+
+describe('审计可追溯与累计精度', () => {
+  it('保留操作时的名称与资料，重命名不篡改先前审计', () => {
+    let ledger = baseLedger();
+    ledger = allocateIncome(ledger, { id: 'fund', poolId: 'daily', periodId: january.id, amount: 12345 });
+    const audit = ledger.audit.at(-1)!;
+    ledger = updateBudgetPool(ledger, 'daily', '新日常', true, january.id);
+    expect(ledger.audit.find(a => a.id === audit.id)).toEqual(audit);
+    expect(audit.description).toContain('日常');
+    expect(audit.description).toContain('123.45');
+    expect(audit.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+  it('总预算和账单累计金额也必须保持安全整数', () => {
+    let ledger = allocateIncome(baseLedger(), { id: 'max', poolId: 'daily', periodId: january.id, amount: Number.MAX_SAFE_INTEGER });
+    expect(() => allocateIncome(ledger, { id: 'extra', poolId: 'digital', periodId: january.id, amount: 1 })).toThrow(/安全/);
+    ledger = recordStatement(ledger, { id: 'bill', accountId: 'a', fingerprint: 'a', amount: Number.MAX_SAFE_INTEGER, dueOn: '2027-02-01' });
+    expect(() => recordStatement(ledger, { id: 'extra-bill', accountId: 'b', fingerprint: 'b', amount: 1, dueOn: '2027-02-01' })).toThrow(/安全/);
   });
 });

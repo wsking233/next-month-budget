@@ -42,11 +42,11 @@ export function AppLayout() {
       <div className="min-w-0 lg:ml-64">
         <header className="flex h-16 items-center justify-between border-b border-border px-5 sm:px-8 lg:px-12">
           <span className="text-xs text-muted-foreground">个人预算 · 你的节奏</span>
-          <div className="flex items-center gap-3"><span className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground">交互演示</span><div className="hidden lg:block"><ThemeToggle dark={dark} onToggle={() => setDark(!dark)} /></div></div>
+          <div className="flex items-center gap-3"><span className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground">内存阶段</span><div className="hidden lg:block"><ThemeToggle dark={dark} onToggle={() => setDark(!dark)} /></div></div>
         </header>
         <main id="main-content" tabIndex={-1} className="mx-auto w-full max-w-6xl px-5 py-8 outline-none sm:px-8 sm:py-12 lg:px-12">
           <Outlet />
-          <footer className="mt-10 text-xs leading-6 text-muted-foreground">当前为交互原型，演示操作不会真实入账；刷新后演示数据清空。</footer>
+          <footer className="mt-10 text-xs leading-6 text-muted-foreground">当前账本仅在内存中，刷新即丢失。请先使用测试数据，等待本地保存与备份功能。</footer>
         </main>
       </div>
     </div>

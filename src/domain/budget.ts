@@ -2,6 +2,7 @@ export type MoneyCents = number;
 
 export type BudgetPeriod = {
   id: string;
+  name?: string;
   startsOn: string;
   endsOn: string;
 };
@@ -24,6 +25,7 @@ export type Statement = {
   accountId: string;
   fingerprint: string;
   amount: MoneyCents;
+  statementOn?: string;
   dueOn: string;
   status: 'recorded' | 'settled' | 'cancelled';
   allocations: Allocation[];
@@ -43,6 +45,8 @@ export type AuditEvent = {
   kind:
     | 'period_created'
     | 'pool_created'
+    | 'pool_updated'
+    | 'statement_revised'
     | 'income_allocated'
     | 'statement_recorded'
     | 'statement_settled'
@@ -50,6 +54,8 @@ export type AuditEvent = {
     | 'settlement_cancelled'
     | 'settlement_corrected';
   subjectId: string;
+  createdAt: string;
+  description: string;
   reason?: string;
 };
 
@@ -89,17 +95,17 @@ export function createBudgetPeriod(ledger: BudgetLedger, period: NewPeriod): Bud
   return {
     ...ledger,
     periods: [...ledger.periods, { ...period }].sort((a, b) => a.startsOn.localeCompare(b.startsOn)),
-    audit: appendAudit(ledger, 'period_created', period.id),
+    audit: appendAudit(ledger, 'period_created', period.id, undefined, `${period.name || period.id} · ${period.startsOn} — ${period.endsOn}`),
   };
 }
 
 export function createBudgetPool(ledger: BudgetLedger, pool: NewPool): BudgetLedger {
   assertUniqueId(ledger.pools, pool.id, '资金池');
-  if (!pool.name.trim()) throw new Error('资金池名称不能为空');
+  assertPoolName(ledger, pool.name);
   return {
     ...ledger,
     pools: [...ledger.pools, { ...pool, name: pool.name.trim(), active: pool.active ?? true }],
-    audit: appendAudit(ledger, 'pool_created', pool.id),
+    audit: appendAudit(ledger, 'pool_created', pool.id, undefined, `${pool.name.trim()}（未拨款）`),
   };
 }
 
@@ -114,21 +120,18 @@ export function allocateIncome(ledger: BudgetLedger, allocation: IncomeAllocatio
   };
   return {
     ...ledger,
-    entries: [...ledger.entries, entry],
-    audit: appendAudit(ledger, 'income_allocated', allocation.id),
+    entries: checkedEntries(ledger, [entry]),
+    audit: appendAudit(ledger, 'income_allocated', allocation.id, undefined, describeEntry(ledger, allocation)),
   };
 }
 
 export function recordStatement(ledger: BudgetLedger, statement: NewStatement): BudgetLedger {
   assertUniqueId(ledger.statements, statement.id, '账单');
-  assertPositiveMoney(statement.amount);
-  assertIsoDate(statement.dueOn, '还款日期');
-  if (!statement.accountId.trim() || !statement.fingerprint.trim()) throw new Error('账单账户和去重标识不能为空');
-  if (ledger.statements.some((item) => item.fingerprint === statement.fingerprint)) throw new Error('检测到重复账单');
+  const normalized = validateStatement(ledger, statement);
   return {
     ...ledger,
-    statements: [...ledger.statements, { ...statement, status: 'recorded', allocations: [] }],
-    audit: appendAudit(ledger, 'statement_recorded', statement.id),
+    statements: [...ledger.statements, { ...normalized, status: 'recorded', allocations: [] }],
+    audit: appendAudit(ledger, 'statement_recorded', statement.id, undefined, describeStatement(normalized)),
   };
 }
 
@@ -138,7 +141,7 @@ export function settleStatement(ledger: BudgetLedger, statementId: string, alloc
   if (statement.status === 'cancelled') throw new Error('已取消账单不能直接结算');
   validateAllocations(ledger, statement, allocations);
   const entries = allocations.map<BudgetEntry>((allocation) => ({
-    id: `settlement:${statement.id}:${allocation.id}`,
+    id: `settlement:${statement.id}:${ledger.audit.length}:${allocation.id}`,
     poolId: allocation.poolId,
     periodId: allocation.periodId,
     amount: -allocation.amount,
@@ -148,12 +151,13 @@ export function settleStatement(ledger: BudgetLedger, statementId: string, alloc
   return {
     ...ledger,
     statements: replaceStatement(ledger, { ...statement, status: 'settled', allocations: allocations.map((item) => ({ ...item })) }),
-    entries: [...ledger.entries, ...entries],
-    audit: appendAudit(ledger, 'statement_settled', statement.id),
+    entries: checkedEntries(ledger, entries),
+    audit: appendAudit(ledger, 'statement_settled', statement.id, undefined, `${describeStatement(statement)}；分配：${describeAllocations(ledger, allocations)}`),
   };
 }
 
 export function transferBudget(ledger: BudgetLedger, transfer: Transfer): BudgetLedger {
+  if (!transfer.id.trim()) throw new Error('调拨 ID 不能为空');
   if (ledger.entries.some((entry) => entry.sourceId === transfer.id && (entry.kind === 'transfer_in' || entry.kind === 'transfer_out'))) {
     throw new Error('调拨 ID 已存在');
   }
@@ -168,8 +172,8 @@ export function transferBudget(ledger: BudgetLedger, transfer: Transfer): Budget
   ];
   return {
     ...ledger,
-    entries: [...ledger.entries, ...entries],
-    audit: appendAudit(ledger, 'budget_transferred', transfer.id, transfer.reason),
+    entries: checkedEntries(ledger, entries),
+    audit: appendAudit(ledger, 'budget_transferred', transfer.id, transfer.reason.trim(), `${requirePool(ledger, transfer.fromPoolId).name} → ${requirePool(ledger, transfer.toPoolId).name} · ${requirePeriod(ledger, transfer.periodId).name || transfer.periodId} · ${formatAmount(transfer.amount)}`),
   };
 }
 
@@ -177,12 +181,12 @@ export function cancelSettlement(ledger: BudgetLedger, statementId: string, reas
   const statement = requireStatement(ledger, statementId);
   if (statement.status !== 'settled') throw new Error('只有已结算账单可以取消');
   if (!reason.trim()) throw new Error('取消原因不能为空');
-  const reversals = settlementReversals(statement, `cancel:${statement.id}`);
+  const reversals = settlementReversals(statement, `cancel:${statement.id}:${ledger.audit.length}`);
   return {
     ...ledger,
     statements: replaceStatement(ledger, { ...statement, status: 'cancelled' }),
-    entries: [...ledger.entries, ...reversals],
-    audit: appendAudit(ledger, 'settlement_cancelled', statement.id, reason),
+    entries: checkedEntries(ledger, reversals),
+    audit: appendAudit(ledger, 'settlement_cancelled', statement.id, reason.trim(), `${describeStatement(statement)}；冲销：${describeAllocations(ledger, statement.allocations)}`),
   };
 }
 
@@ -204,8 +208,8 @@ export function correctSettlement(ledger: BudgetLedger, statementId: string, all
   return {
     ...ledger,
     statements: replaceStatement(ledger, { ...statement, allocations: allocations.map((item) => ({ ...item })) }),
-    entries: [...ledger.entries, ...reversals, ...replacements],
-    audit: appendAudit(ledger, 'settlement_corrected', statement.id, reason),
+    entries: checkedEntries(ledger, [...reversals, ...replacements]),
+    audit: appendAudit(ledger, 'settlement_corrected', statement.id, reason.trim(), `${describeStatement(statement)}；原分配：${describeAllocations(ledger, statement.allocations)}；新分配：${describeAllocations(ledger, allocations)}`),
   };
 }
 
@@ -213,22 +217,24 @@ export function getPoolBalance(ledger: BudgetLedger, poolId: string, throughPeri
   requirePool(ledger, poolId);
   const throughPeriod = requirePeriod(ledger, throughPeriodId);
   const includedPeriods = new Set(ledger.periods.filter((period) => period.startsOn <= throughPeriod.startsOn).map((period) => period.id));
-  return ledger.entries
+  const total = ledger.entries
     .filter((entry) => entry.poolId === poolId && includedPeriods.has(entry.periodId))
-    .reduce((total, entry) => total + entry.amount, 0);
+    .reduce((sum, entry) => sum + BigInt(entry.amount), 0n);
+  return Number(total);
 }
 
 function validateAllocations(ledger: BudgetLedger, statement: Statement, allocations: Allocation[]) {
   if (allocations.length === 0) throw new Error('账单至少需要一条分配');
   const ids = new Set<string>();
   for (const allocation of allocations) {
+    if (!allocation.id.trim()) throw new Error('分配 ID 不能为空');
     if (ids.has(allocation.id)) throw new Error('分配 ID 不能重复');
     ids.add(allocation.id);
     assertPeriodAndPool(ledger, allocation.periodId, allocation.poolId);
     assertPositiveMoney(allocation.amount);
   }
-  const total = allocations.reduce((sum, allocation) => sum + allocation.amount, 0);
-  if (total !== statement.amount) throw new Error('分配总额必须与账单总额一致');
+  const total = allocations.reduce((sum, allocation) => sum + BigInt(allocation.amount), 0n);
+  if (total !== BigInt(statement.amount)) throw new Error('分配总额必须与账单总额一致');
 }
 
 function settlementReversals(statement: Statement, prefix: string): BudgetEntry[] {
@@ -246,8 +252,8 @@ function replaceStatement(ledger: BudgetLedger, replacement: Statement) {
   return ledger.statements.map((statement) => statement.id === replacement.id ? replacement : statement);
 }
 
-function appendAudit(ledger: BudgetLedger, kind: AuditEvent['kind'], subjectId: string, reason?: string) {
-  return [...ledger.audit, { id: `${kind}:${subjectId}:${ledger.audit.length + 1}`, kind, subjectId, reason }];
+function appendAudit(ledger: BudgetLedger, kind: AuditEvent['kind'], subjectId: string, reason?: string, description = subjectId) {
+  return [...ledger.audit, { id: `${kind}:${subjectId}:${ledger.audit.length + 1}`, kind, subjectId, reason, description, createdAt: new Date().toISOString() }];
 }
 
 function assertPeriodAndPool(ledger: BudgetLedger, periodId: string, poolId: string) {
@@ -284,7 +290,78 @@ function assertPositiveMoney(amount: MoneyCents) {
 }
 
 function assertIsoDate(value: string, label: string) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(Date.parse(`${value}T00:00:00Z`))) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(Date.parse(`${value}T00:00:00Z`)) || new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) !== value) {
     throw new Error(`${label}必须是有效的 YYYY-MM-DD 日期`);
   }
 }
+
+
+export function updateBudgetPool(ledger: BudgetLedger, poolId: string, name: string, active: boolean, throughPeriodId: string): BudgetLedger {
+  const pool = requirePool(ledger, poolId);
+  assertPoolName(ledger, name, poolId);
+  if (pool.active && !active) {
+    const period = requirePeriod(ledger, throughPeriodId);
+    if (ledger.entries.some(entry => entry.poolId === poolId && requirePeriod(ledger, entry.periodId).startsOn > period.startsOn)) throw new Error('请先处理未来周期的资金池安排');
+    if (getPoolBalance(ledger, poolId, throughPeriodId) !== 0) throw new Error('资金池余额须先清零，才能停用');
+  }
+  return { ...ledger, pools: ledger.pools.map(p => p.id === poolId ? { ...p, name: name.trim(), active } : p), audit: appendAudit(ledger, 'pool_updated', poolId, undefined, `${pool.name} → ${name.trim()} · ${active ? '启用' : '停用'}；历史流水保留`) };
+}
+
+export function reviseStatement(ledger: BudgetLedger, statementId: string, patch: Omit<NewStatement, 'id'>, reason: string): BudgetLedger {
+  const before = requireStatement(ledger, statementId);
+  if (before.status === 'settled') throw new Error('已结算账单修改资料前须先撤销结算；只改分类可用更正分配');
+  if (!reason.trim()) throw new Error('修改原因不能为空');
+  const normalized = validateStatement(ledger, { ...patch, id: statementId });
+  return { ...ledger, statements: replaceStatement(ledger, { ...normalized, status: 'recorded', allocations: [] }), audit: appendAudit(ledger, 'statement_revised', statementId, reason.trim(), `原：${describeStatement(before)}；新：${describeStatement(normalized)}；状态改为待分配`) };
+}
+
+function validateStatement(ledger: BudgetLedger, statement: NewStatement): NewStatement {
+  assertPositiveMoney(statement.amount);
+  assertIsoDate(statement.dueOn, '还款日期');
+  if (statement.statementOn) {
+    assertIsoDate(statement.statementOn, '账单日期');
+    if (statement.statementOn > statement.dueOn) throw new Error('还款日不能早于账单日');
+  }
+  const accountId = statement.accountId.trim(), fingerprint = statement.fingerprint.trim();
+  if (!accountId || !fingerprint) throw new Error('账单账户和去重标识不能为空');
+  if (ledger.statements.some(item => item.id !== statement.id && item.accountId === accountId && item.fingerprint === fingerprint)) throw new Error('检测到重复账单');
+  const aggregate = ledger.statements.filter(s => s.id !== statement.id).reduce((sum, s) => sum + BigInt(s.amount), BigInt(statement.amount));
+  if (aggregate > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error('账单累计金额超出安全整数范围');
+  return { ...statement, accountId, fingerprint };
+}
+function assertPoolName(ledger: BudgetLedger, name: string, exceptId?: string) {
+  if (!name.trim()) throw new Error('资金池名称不能为空');
+  if (ledger.pools.some(p => p.id !== exceptId && p.name === name.trim())) throw new Error('资金池名称不能重复');
+}
+function checkedEntries(ledger: BudgetLedger, additions: BudgetEntry[]): BudgetEntry[] {
+  const ids = new Set(ledger.entries.map(entry => entry.id));
+  for (const entry of additions) {
+    if (!entry.id.trim() || ids.has(entry.id)) throw new Error('预算流水 ID 已存在或为空');
+    ids.add(entry.id);
+  }
+  const entries = [...ledger.entries, ...additions];
+  // Check each period's cumulative balance, including historical corrections.
+  // BigInt prevents an unsafe intermediate sum from silently rounding.
+  const chronological = [...ledger.periods].sort((a, b) => a.startsOn.localeCompare(b.startsOn));
+  let ledgerTotal = 0n;
+  const balances = new Map<string, bigint>();
+  for (const period of chronological) {
+    let periodFunding = 0n;
+    const changes = new Map<string, bigint>();
+    for (const entry of entries.filter(e => e.periodId === period.id)) {
+      const amount = BigInt(entry.amount);
+      balances.set(entry.poolId, (balances.get(entry.poolId) ?? 0n) + amount);
+      changes.set(entry.poolId, (changes.get(entry.poolId) ?? 0n) + amount);
+      ledgerTotal += amount;
+      if (entry.kind === 'income_allocation') periodFunding += amount;
+    }
+    for (const total of [...balances.values(), ...changes.values(), ledgerTotal, periodFunding]) {
+      if (total > BigInt(Number.MAX_SAFE_INTEGER) || total < BigInt(Number.MIN_SAFE_INTEGER)) throw new Error('累计金额超出安全整数范围');
+    }
+  }
+  return entries;
+}
+function formatAmount(amount: number) { const cents = BigInt(amount); return `¥${cents / 100n}.${String(cents % 100n).padStart(2, '0')}`; }
+function describeStatement(statement: NewStatement) { return `${statement.accountId} · ${statement.fingerprint} · ${formatAmount(statement.amount)} · 账单日 ${statement.statementOn || '未记录'} · 还款日 ${statement.dueOn}`; }
+function describeEntry(ledger: BudgetLedger, entry: IncomeAllocation) { return `${requirePool(ledger, entry.poolId).name} · ${requirePeriod(ledger, entry.periodId).name || entry.periodId} · ${formatAmount(entry.amount)}`; }
+function describeAllocations(ledger: BudgetLedger, allocations: Allocation[]) { return allocations.map(a => describeEntry(ledger, a)).join('；'); }

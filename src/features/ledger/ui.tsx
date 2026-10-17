@@ -26,5 +26,5 @@ export function Modal({ title, children, close }: { title: string; children: Rea
     dialog.showModal();
     return () => { dialog.close(); trigger?.focus(); };
   }, []);
-  return <dialog ref={ref} aria-labelledby={titleId} onCancel={close} className="demo-dialog"><div className="flex items-center justify-between gap-4 border-b border-border p-5"><h2 id={titleId} className="text-lg font-semibold">{title}</h2><Button variant="ghost" size="icon" aria-label="关闭弹窗" onClick={close}><X aria-hidden="true" /></Button></div><div className="p-5 sm:p-6"><p className="mb-5 rounded-lg bg-muted p-3 text-xs leading-6 text-muted-foreground">仅模拟交互，不会真实入账或保存。刷新后清空。</p>{children}</div></dialog>;
+  return <dialog ref={ref} aria-labelledby={titleId} onCancel={close} className="demo-dialog"><div className="flex items-center justify-between gap-4 border-b border-border p-5"><h2 id={titleId} className="text-lg font-semibold">{title}</h2><Button variant="ghost" size="icon" aria-label="关闭弹窗" onClick={close}><X aria-hidden="true" /></Button></div><div className="p-5 sm:p-6"><p className="mb-5 rounded-lg bg-muted p-3 text-xs leading-6 text-muted-foreground">操作会更新当前内存账本，尚未保存。刷新或关闭页面即丢失，请先使用测试数据。</p>{children}</div></dialog>;
 }
