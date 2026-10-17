@@ -58,3 +58,9 @@ a:focus-visible { outline: 2px solid var(--ring); outline-offset: 4px; }
 .skip-link:focus { top: 1rem; }
 .empty-panel { background-image: radial-gradient(circle at 50% 0, color-mix(in srgb, var(--accent) 45%, transparent), transparent 65%); }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; scroll-behavior: auto !important; } }
+
+.form-control { width: 100%; min-width: 0; min-height: 44px; border: 1px solid var(--border); border-radius: 0.75rem; background: var(--background); color: var(--foreground); padding: 0.6rem 0.75rem; font: inherit; font-weight: 400; }
+.form-control:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.demo-dialog { width: min(42rem, calc(100% - 2rem)); max-height: calc(100dvh - 2rem); padding: 0; margin: auto; overflow-y: auto; border: 1px solid var(--border); border-radius: 1.25rem; background: var(--card); color: var(--foreground); }
+.demo-dialog::backdrop { background: rgb(0 0 0 / 45%); }
+.money { font-variant-numeric: tabular-nums; letter-spacing: -0.025em; }

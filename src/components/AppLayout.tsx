@@ -19,7 +19,7 @@ export function AppLayout() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <a href="#main-content" className="skip-link">跳至主要内容</a>
+      <a href="#main-content" onClick={event => { event.preventDefault(); document.getElementById('main-content')?.focus(); }} className="skip-link">跳至主要内容</a>
       <aside className="border-b border-border bg-card lg:fixed lg:inset-y-0 lg:left-0 lg:flex lg:w-64 lg:flex-col lg:border-r lg:border-b-0">
         <div className="flex items-center justify-between px-5 py-5 lg:px-7 lg:py-9">
           <NavLink to="/" className="flex min-w-0 items-center gap-3 rounded-lg" aria-label="下月再说首页">
@@ -42,11 +42,11 @@ export function AppLayout() {
       <div className="min-w-0 lg:ml-64">
         <header className="flex h-16 items-center justify-between border-b border-border px-5 sm:px-8 lg:px-12">
           <span className="text-xs text-muted-foreground">个人预算 · 你的节奏</span>
-          <div className="flex items-center gap-3"><span className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground">基础预览</span><div className="hidden lg:block"><ThemeToggle dark={dark} onToggle={() => setDark(!dark)} /></div></div>
+          <div className="flex items-center gap-3"><span className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground">交互演示</span><div className="hidden lg:block"><ThemeToggle dark={dark} onToggle={() => setDark(!dark)} /></div></div>
         </header>
         <main id="main-content" tabIndex={-1} className="mx-auto w-full max-w-6xl px-5 py-8 outline-none sm:px-8 sm:py-12 lg:px-12">
           <Outlet />
-          <footer className="mt-10 text-xs leading-6 text-muted-foreground">当前为页面骨架，尚未接入账务操作与数据保存。</footer>
+          <footer className="mt-10 text-xs leading-6 text-muted-foreground">当前为交互原型，演示操作不会真实入账；刷新后演示数据清空。</footer>
         </main>
       </div>
     </div>
