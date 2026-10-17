@@ -2,43 +2,65 @@
 
 > 想花就花，有数就行。
 
-个人预算资金池管理工具，以预算周期、资金池结转和多信用卡账单集中结算为核心。不是要求每天逐笔记账的记账 App。
+个人预算资金池管理工具，以预算周期、资金池结转和多信用卡账单集中结算为核心。
 
-## 当前状态（2026-10-17）
+## 当前状态
 
-**产品规划与领域模型阶段。** 已清理旧 Expo / React Native / iOS 工程、导航界面、构建脚本和平台限定计划。暂不包含可运行的 Web 前端或本地存储实现。已补齐云开发环境和领域测试的 Node 工程配置，尚未执行完整 Phase 1。
+Phase 1 基础工程已实现：React + TypeScript + Vite、响应式布局、六个空页面、404 和深浅色主题。领域模型及原有测试保留。当前仅为页面骨架，尚未接入业务操作、Mock、账本持久化、登录或云同步；不适合录入真实财务数据。Phase 2 及后续阶段未实施。
 
-新开发方向：**标准 React + TypeScript Web App**，Web 优先，以响应式布局适配手机、平板和桌面浏览器。后续需要离线能力时再评估 PWA / 浏览器持久化方案，不提前绑定具体部署、数据库或组件库。
+技术栈：React 19、React Router 7、Vite 8、Tailwind CSS 4、shadcn/ui 组件约定；测试使用 Vitest + Testing Library。状态管理在业务接入时按路线图引入 Zustand，当前无需业务状态库。
 
-## 已保留内容
+## 安装与启动
 
-- `docs/01-product-vision.md`：产品愿景和成功标准
-- `docs/02-requirements-prd.md`：产品需求及核心验收
-- `docs/03-budget-business-rules.md`：资金池余额、结转、调拨及账务不变量
-- `docs/04-credit-card-settlement.md`：信用卡账单、还款与预算归属
-- `docs/05-data-model.md`：领域概念实体与关系
-- `docs/09-competitor-analysis.md`：竞品观察
-- `docs/10-decisions-and-open-questions.md`：最新已定方向、待确认项
-- `docs/12-interaction-flow.md`：与平台无关的业务交互流程
-- `src/domain/budget.ts` 和 `src/domain/budget.test.ts`：纯 TypeScript 预算业务模型及测试
+要求 Node.js 24 LTS + npm 11，版本约定见 `.nvmrc`、`.node-version`。
 
-## 核心原则
+```bash
+# 使用 nvm 时，先执行 nvm install && nvm use
+npm ci
+npm run dev
+```
 
-1. 预算拨款不是账户之间的实际转账；预算余额不是银行现金余额。
-2. 正负预算跨期滚存，禁止自动无痕跨池调拨。
-3. 账单金额分配必须全额匹配，结算可追溯且不得重复扣减。
-4. 金额以整数分表示，避免浮点误差。
-5. 业务逻辑与页面、浏览器存储和后端服务解耦。
-6. 示例金额与日期仅用于验证，不硬编码、不上传真实个人财务数据。
+开发服务监听 `0.0.0.0:5173`（固定端口），云环境转发 5173 即可访问。无需环境变量或后端服务。支持 Dev Containers 的平台可直接使用仓库配置；其他平台设置见 [云开发环境准备](docs/14-cloud-development.md)。
 
-## 开发计划
+## 检查与构建
 
-[Web App 六阶段开发路线图](docs/13-web-development-roadmap.md)：Phase 1 工程与布局、Phase 2 交互原型、Phase 3 业务模型、Phase 4 localStorage 与备份、Phase 5 统计规划、Phase 6 质量与发布。目前仅规划，尚未实施。
+```bash
+npm run setup          # 锁文件安装 + ESLint、类型、测试、构建检查
+npm run lint
+npm run typecheck
+npm test               # 领域 + React 路由、主题测试
+npm run test:watch
+npm run build          # 类型检查并输出 dist/
+npm run preview        # 在 0.0.0.0:4173 预览构建结果
+```
 
-## 下一阶段
+可选浏览器验收（需要额外安装 Chromium 及系统依赖；不在自动安装脚本内）：
 
-在保留并复核现有领域规则的基础上，重新初始化 React + TypeScript Web 工程；先完成跨屏幕尺寸的布局、路由、基础页面骨架，再逐步接入业务逻辑与持久化。旧 Expo 工程完整保存在归档分支，避免历史代码丢失。
+```bash
+npx playwright install --with-deps chromium
+npm run test:browser
+```
 
-## 云开发环境
+`dist/` 是普通静态站点。正式托管需要配置 SPA fallback：未匹配静态文件的页面请求回退到 `index.html`，以支持 `/pools` 等深层链接。Vite 开发/预览服务自带该行为；`preview` 仅用于验证构建。
 
-见 [云开发环境准备](docs/14-cloud-development.md)。支持 Dev Container / Codespaces 自动安装；其他平台选择 Node.js 24 LTS + npm 11，安装命令使用 `bash scripts/setup.sh`。当前可执行 `npm run check` 验证领域模型，Web 开发服务将在 Phase 1 搭建。
+## 项目结构
+
+- `src/domain/`：纯 TypeScript 预算模型，金额使用整数分，与 UI 和存储解耦
+- `src/components/`：响应式布局及 shadcn/ui 风格基础组件
+- `src/pages/`：概览、资金池、账单、预算计划、历史记录、设置空页面
+- `src/index.css`：Tailwind 入口、颜色 token、主题与基础样式
+- `tests/browser/`：375 / 768 / 1440px 布局与路由验收
+- `components.json`：shadcn/ui 配置，别名为 `@/*`
+- `docs/`：产品、业务规则、模型、路线图与阶段交付说明
+
+## 业务与开发文档
+
+- [产品需求](docs/02-requirements-prd.md)
+- [预算业务规则](docs/03-budget-business-rules.md)
+- [信用卡结算](docs/04-credit-card-settlement.md)
+- [数据模型](docs/05-data-model.md)
+- [决策记录](docs/10-decisions-and-open-questions.md)
+- [六阶段开发路线图](docs/13-web-development-roadmap.md)
+- [Phase 1 交付与手动验收](docs/15-phase-1-delivery.md)
+
+预算余额不等于银行现金余额；跨池调拨必须显式留痕。后续浏览器本地存储与备份在 Phase 4 实现，当前主题切换只保存在内存中。

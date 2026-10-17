@@ -20,4 +20,4 @@ fi
 npm ci --no-fund --no-audit
 npm run check
 
-echo "云开发依赖和领域测试已就绪。Web 页面与 Vite 启动入口将在 Phase 1 实现。"
+echo "云开发环境已就绪。运行 npm run dev 启动 Web 开发服务（端口 5173）。"
