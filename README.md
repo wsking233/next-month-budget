@@ -8,7 +8,7 @@
 
 Phase 5 统计与预算规划已实现：概览提供预算收支桥梁、结转趋势、多周期对比与拨款分布；预算计划提供手工假设驱动的只读模拟。账务操作自动保存到当前浏览器，刷新和关闭重开可恢复；支持 JSON 导出、严格校验导入与覆盖确认。保留周期、资金池、拨款、账单结算、调拨、更正、撤销及审计闭环，演示样例与本地账本隔离。
 
-数据仅在此浏览器保存，不跨设备同步；清理站点数据、隐私模式或换设备可能丢失，请定期导出备份。备份是未加密 JSON，需妥善保管。没有登录、后端、云同步或银行数据接入。当前版本 0.6.0，六阶段路线图已完成。
+数据仅在此浏览器保存，不跨设备同步；清理站点数据、隐私模式或换设备可能丢失，请定期导出备份。备份是未加密 JSON，需妥善保管。没有登录、后端、云同步或银行数据接入。当前版本 0.7.0，六阶段路线图已完成；下一轮首阶段加入数据驱动建账引导、账单组合筛选、历史筛选重置、操作反馈与主题持久化。
 
 技术栈：React 19、React Router 7、Vite 8、Tailwind CSS 4、shadcn/ui 组件约定、Zustand；测试使用 Vitest + Testing Library + Playwright。领域层保持纯 TypeScript，账务金额为整数分，汇总使用精确整数运算，UI 显示人民币元。
 
@@ -89,6 +89,8 @@ npm run test:browser:all  # Chromium + Firefox + WebKit
 - [数据模型](docs/05-data-model.md)
 - [决策记录](docs/10-decisions-and-open-questions.md)
 - [六阶段开发路线图](docs/13-web-development-roadmap.md)
+- [下一轮开发计划](docs/21-next-development-plan.md)
+- [v0.7 日常使用体验交付](docs/22-v0.7-delivery.md)
 - [Phase 1 交付与手动验收](docs/15-phase-1-delivery.md)
 - [Phase 2 交付与手动验收](docs/16-phase-2-delivery.md)
 - [Phase 3 交付与手动验收](docs/17-phase-3-delivery.md)
@@ -97,4 +99,4 @@ npm run test:browser:all  # Chromium + Firefox + WebKit
 - [Phase 6 质量与兼容验收](docs/20-phase-6-delivery.md)
 - [版本记录](CHANGELOG.md)
 
-预算余额不等于银行现金余额；跨池调拨必须显式留痕。账本自动保存在当前浏览器，主题选择仍只在内存中。按用户约定，日常推送不查询 GitHub Actions 状态 API；仅发布异常时排查。
+预算余额不等于银行现金余额；跨池调拨必须显式留痕。账本自动保存在当前浏览器，主题偏好独立保存在当前浏览器，不进入账本备份。按用户约定，日常推送不查询 GitHub Actions 状态 API；仅发布异常时排查。

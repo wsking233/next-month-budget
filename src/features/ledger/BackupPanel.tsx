@@ -45,6 +45,7 @@ export function BackupPanel() {
   }
   return <Panel title="本地保存与备份">
     <div className="grid gap-5 text-sm leading-7">
+      {local && <p>{persistence.kind === 'ready' ? (persistence.savedAt ? `当前账本已保存于 ${new Date(persistence.savedAt).toLocaleString('zh-CN')}` : '当前尚无已保存的账本。') : `保存状态：${persistence.message}`}</p>}
       <p>账本只保存在此浏览器，不会上传或跨设备同步；请避免多标签页同时编辑。清理站点数据、隐私模式或更换设备可能丢失数据，请定期导出 JSON 备份。</p>
       <p className="text-muted-foreground">备份包含完整账本与审计记录，未加密；恢复会整体替换当前本地账本，不会合并或重复记账。只支持本应用的有效备份，大小不超过 2 MB。</p>
       {!local && <p className="font-medium text-primary">演示数据不写入本地，也不能导出为用户备份。请先返回本地账本，再进行备份或恢复。</p>}

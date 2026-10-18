@@ -8,8 +8,18 @@ import { version } from '../../package.json';
 
 export function AppLayout() {
   const location = useLocation();
-  const [dark, setDark] = useState(() => window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false);
-  useEffect(() => { document.documentElement.classList.toggle('dark', dark); }, [dark]);
+  const [dark, setDark] = useState(() => {
+    try {
+      const saved = localStorage.getItem('next-month-budget:theme');
+      if (saved === 'dark' || saved === 'light') return saved === 'dark';
+    } catch { /* Preferences must not block the ledger. */ }
+    return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
+  });
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', dark);
+    try { localStorage.setItem('next-month-budget:theme', dark ? 'dark' : 'light'); }
+    catch { /* Theme remains usable in memory when storage is unavailable. */ }
+  }, [dark]);
   useEffect(() => {
     const page = pages.find((item) => item.path === location.pathname);
     document.title = `${page?.title ?? '页面未找到'} · 下月再说`;

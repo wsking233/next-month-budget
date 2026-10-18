@@ -57,7 +57,7 @@ for (const width of [375, 768, 1440]) {
     await page.getByLabel('分配金额 2（元）').fill('599.99');
     expect(await dialog.evaluate(el => el.scrollWidth <= el.clientWidth)).toBeTruthy();
     await page.getByRole('button', { name: '核对分配', exact: true }).click();
-    await expect(page.getByRole('status')).toContainText('还款状态不变');
+    await expect(dialog.getByRole('status')).toContainText('还款状态不变');
     await page.getByRole('button', { name: '确认结算', exact: true }).click();
     const bill = poolCard(page, '演示信用卡 A');
     await expect(bill.getByText('已结算', { exact: true })).toBeVisible();

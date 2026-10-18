@@ -7,7 +7,7 @@ import { Field, Input, Modal, Select } from './ui';
 
 export type FormKind = 'period' | 'pool' | 'funding' | 'statement' | 'transfer';
 const titles = { period: '创建预算周期', pool: '创建资金池', funding: '预算拨款', statement: '登记账单', transfer: '资金池调拨' };
-export function LedgerForm({ kind, close, editing }: { kind: FormKind; close: () => void; editing?: Statement }) {
+export function LedgerForm({ kind, close, editing, completed }: { kind: FormKind; close: () => void; editing?: Statement; completed?: () => void }) {
   const { ledger, currentPeriod, execute } = useLedger();
   const [error, setError] = useState('');
   const pools = ledger.pools.filter(p => p.active);
@@ -30,7 +30,7 @@ export function LedgerForm({ kind, close, editing }: { kind: FormKind; close: ()
       const patch = { accountId: text('account'), fingerprint: text('reference'), amount, statementOn: text('date'), dueOn: text('due') };
       return editing ? reviseStatement(l, editing.id, patch, text('reason')) : recordStatement(l, { id, ...patch });
     }, kind === 'period' ? id : undefined);
-    if (failure) setError(failure); else close();
+    if (failure) setError(failure); else (completed ?? close)();
   }
   const periodField = <Field label="预算周期"><Select name="period" required defaultValue={currentPeriod}><option value="">请选择</option>{periods.map(p => <option key={p.id} value={p.id}>{p.name || p.startsOn}</option>)}</Select></Field>;
   return <Modal title={editing ? '修改账单资料' : titles[kind]} close={close}><form className="grid gap-5" onSubmit={submit}>
@@ -49,7 +49,7 @@ export function LedgerForm({ kind, close, editing }: { kind: FormKind; close: ()
 }
 
 type Draft = { id: string; poolId: string; periodId: string; value: string };
-export function AllocationForm({ statement, close }: { statement: Statement; close: () => void }) {
+export function AllocationForm({ statement, close, completed }: { statement: Statement; close: () => void; completed?: () => void }) {
   const { ledger, execute } = useLedger();
   const correcting = statement.status === 'settled';
   const pools = ledger.pools.filter(p => p.active);
@@ -69,7 +69,7 @@ export function AllocationForm({ statement, close }: { statement: Statement; clo
     if (!valid) return;
     if (!confirming) return setConfirming(true);
     const failure = execute(l => correcting ? correctSettlement(l, statement.id, allocations, reason) : settleStatement(l, statement.id, allocations));
-    if (failure) setError(failure); else close();
+    if (failure) setError(failure); else (completed ?? close)();
   }
   return <Modal title={correcting ? '更正账单分配' : '拆分与核对'} close={close}><form onSubmit={submit} className="grid gap-5"><div><p className="font-medium break-words">{statement.accountId} · {statement.fingerprint}</p><p className="mt-1 text-sm text-muted-foreground">还款日 {statement.dueOn} · 预算结算不代表还款</p></div>
     <p className="text-xs leading-6 text-muted-foreground">暂按还款日所在周期建议归属，可手动改为其他周期。无匹配周期时请先创建；跨期拆分请逐行选择。{correcting && '更正将先冲销旧分配，再记入新分配，并重算后续周期余额。'}</p>
@@ -84,23 +84,23 @@ export function AllocationForm({ statement, close }: { statement: Statement; clo
   </form></Modal>;
 }
 
-export function CancelForm({ statement, close }: { statement: Statement; close: () => void }) {
+export function CancelForm({ statement, close, completed }: { statement: Statement; close: () => void; completed?: () => void }) {
   const { execute } = useLedger();
   const [reason, setReason] = useState(''), [error, setError] = useState('');
   return <Modal title="撤销账单结算" close={close}><form className="grid gap-5" onSubmit={e => {
     e.preventDefault();
     const failure = execute(l => cancelSettlement(l, statement.id, reason));
-    if (failure) setError(failure); else close();
+    if (failure) setError(failure); else (completed ?? close)();
   }}><p className="text-sm leading-7">将冲销 {statement.accountId} · {money(statement.amount)} 的当前结算分配，重新计算受影响周期及以后余额。原记录保留，账单标记为已撤销，不改变实际还款。之后可修改资料，再重新结算。</p><Field label="撤销原因"><Input required value={reason} maxLength={200} onChange={e => setReason(e.target.value)} /></Field>{error && <p role="alert">{error}</p>}<div className="flex justify-end gap-3"><Button variant="outline" type="button" onClick={close}>取消</Button><Button type="submit" disabled={!reason.trim()}>确认撤销结算</Button></div></form></Modal>;
 }
 
-export function PoolForm({ pool, close }: { pool: BudgetPool; close: () => void }) {
+export function PoolForm({ pool, close, completed }: { pool: BudgetPool; close: () => void; completed?: () => void }) {
   const { execute, currentPeriod } = useLedger();
   const [error, setError] = useState('');
   return <Modal title="编辑资金池" close={close}><form className="grid gap-5" onSubmit={e => {
     e.preventDefault();
     const data = new FormData(e.currentTarget);
     const failure = execute(l => updateBudgetPool(l, pool.id, String(data.get('name')), data.get('active') === 'on', currentPeriod));
-    if (failure) setError(failure); else close();
+    if (failure) setError(failure); else (completed ?? close)();
   }}><Field label="资金池名称"><Input name="name" required maxLength={40} defaultValue={pool.name} /></Field><label className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" name="active" defaultChecked={pool.active} className="size-5" />启用此资金池</label><p className="text-xs leading-6 text-muted-foreground">无流水时可直接停用；已有流水时，所选周期余额须为零且没有后续净变动或有效账单分配。请先调拨或更正账单处理余额；历史流水不会删除，停用后禁止新拨款、调拨和结算。</p>{error && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{error}</p>}<div className="flex justify-end gap-3"><Button variant="outline" type="button" onClick={close}>取消</Button><Button type="submit">保存资金池</Button></div></form></Modal>;
 }

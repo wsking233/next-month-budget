@@ -24,7 +24,12 @@ export function Modal({ title, children, close }: { title: string; children: Rea
     const dialog = ref.current!;
     const trigger = document.activeElement as HTMLElement | null;
     dialog.showModal();
-    return () => { dialog.close(); if (trigger?.isConnected) trigger.focus(); else document.getElementById('main-content')?.focus(); };
+    const observer = new MutationObserver(() => {
+      const alert = dialog.querySelector<HTMLElement>('[role="alert"]');
+      if (alert) { alert.tabIndex = -1; alert.focus(); }
+    });
+    observer.observe(dialog, { childList: true, subtree: true, characterData: true });
+    return () => { observer.disconnect(); dialog.close(); if (trigger?.isConnected) trigger.focus(); else document.getElementById('main-content')?.focus(); };
   }, []);
   return <dialog ref={ref} aria-labelledby={titleId} onCancel={close} onKeyDown={event => {
     if (event.key !== 'Tab') return;
