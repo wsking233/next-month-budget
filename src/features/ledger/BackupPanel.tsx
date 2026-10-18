@@ -1,3 +1,4 @@
+import type { BudgetLedger } from '@/domain/budget';
 import { useBackupStatus } from './useBackupStatus';
 import { useRef, useState, type ChangeEvent } from 'react';
 import { Button } from '@/components/ui/button';
@@ -15,7 +16,7 @@ function download(raw: string, name: string) {
 }
 export function BackupPanel() {
   const { ledger, currentPeriod, mode, persistence, restore, reload, readStoredRaw } = useLedger();
-  const [candidate, setCandidate] = useState<{ raw: string; snapshot: Snapshot; name: string } | null>(null);
+  const [candidate, setCandidate] = useState<{ raw: string; snapshot: Snapshot; name: string; baseLedger: BudgetLedger } | null>(null);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [reading, setReading] = useState(false);
@@ -45,7 +46,7 @@ export function BackupPanel() {
     try {
       const raw = await file.text();
       const snapshot = parseSnapshot(raw);
-      if (id === request.current) setCandidate({ raw, snapshot, name: file.name });
+      if (id === request.current) setCandidate({ raw, snapshot, name: file.name, baseLedger: ledger });
     } catch (failure) {
       if (id === request.current) setError(failure instanceof Error ? failure.message : '文件读取失败，原账本未改变。');
     } finally { if (id === request.current) setReading(false); }
@@ -71,7 +72,7 @@ export function BackupPanel() {
       {error && <p role="alert" className="text-red-700 dark:text-red-300">{error}</p>}
     </div>
     {candidate && <Modal title="确认覆盖本地账本？" close={() => setCandidate(null)}><div className="grid gap-5 text-sm leading-7"><p className="break-words">文件：{candidate.name}</p><p>源文件格式版本 {JSON.parse(candidate.raw).schemaVersion} → 当前格式版本 {candidate.snapshot.schemaVersion}。备份创建于 {new Date(candidate.snapshot.exportedAt ?? candidate.snapshot.savedAt).toLocaleString('zh-CN')}；包含 {candidate.snapshot.workspace.ledger.periods.length} 个周期、{candidate.snapshot.workspace.ledger.pools.length} 个资金池、{candidate.snapshot.workspace.ledger.statements.length} 张账单、{candidate.snapshot.workspace.ledger.entries.length} 条预算流水、{candidate.snapshot.workspace.ledger.planning?.incomes.length ?? 0} 笔收入、{candidate.snapshot.workspace.ledger.credit?.repayments.length ?? 0} 笔还款、{candidate.snapshot.workspace.ledger.audit.length} 条审计记录。</p><p>确认后将整体替换当前本地账本及历史记录。建议先取消并导出当前账本；取消不会修改数据。保存成功后才显示恢复结果。</p>{error && <p role="alert" className="text-red-700 dark:text-red-300">{error}</p>}<div className="flex flex-wrap justify-end gap-3"><Button variant="outline" onClick={() => setCandidate(null)}>取消恢复</Button><Button onClick={() => {
-      const failure = restore(candidate.raw);
+      const failure = restore(candidate.raw, candidate.baseLedger);
       if (failure) { setError(failure); return; }
       setCandidate(null); setError(''); setMessage('备份已恢复并保存到此浏览器。');
     }}>确认覆盖并恢复</Button></div></div></Modal>}

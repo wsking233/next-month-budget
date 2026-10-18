@@ -100,3 +100,59 @@ describe('持久化事务与恢复保护', () => {
     expect(store.getState().memory.ledger.pools).toHaveLength(1);
   });
 });
+
+describe('独占编辑与恢复预览', () => {
+  function harness() {
+    let raw: string | null = null;
+    const repository = new LocalStorageRepository(() => ({ getItem: () => raw, setItem: (_key, value) => { raw = value; } }));
+    const store = makeStore(repository, true);
+    return { store, raw: () => raw };
+  }
+  it('未取得编辑锁前不调用领域操作、不清空、不恢复，重新读取也不能绕过锁', () => {
+    const { store, raw } = harness();
+    let invoked = false;
+    const saved = serializeSnapshot({ ledger: createDemoLedger(), currentPeriod: 'oct' });
+    expect(store.getState().execute(l => { invoked = true; return l; })).toContain('其他标签页');
+    expect(invoked).toBe(false);
+    expect(store.getState().reset()).toContain('其他标签页');
+    expect(store.getState().restore(saved)).toContain('其他标签页');
+    expect(store.getState().reload()).toBeNull();
+    expect(store.getState().writer).toBe('waiting');
+    expect(raw()).toBeNull();
+    store.setState({ writer: 'failed' });
+    expect(store.getState().execute(l => l)).toContain('编辑锁');
+    expect(raw()).toBeNull();
+  });
+  it('等待期间可操作独立演示；取得权限后才保存正式账本', () => {
+    const { store, raw } = harness();
+    store.getState().enterDemo();
+    expect(store.getState().execute(l => createBudgetPool(l, { id: 'demo', name: '演示新池' }))).toBeNull();
+    expect(raw()).toBeNull();
+    store.getState().exitDemo();
+    store.setState({ writer: 'available' });
+    expect(store.getState().execute(l => createBudgetPool(l, { id: 'real', name: '正式新池' }))).toBeNull();
+    expect(raw()).not.toBeNull();
+    expect(store.getState().memory.ledger.pools.map(p => p.id)).toEqual(['real']);
+  });
+  it('旧恢复预览不能覆盖新账务，重新核对后可恢复', () => {
+    const store = createLedgerStore();
+    const initial = store.getState().memory.ledger;
+    const backup = serializeSnapshot({ ledger: createDemoLedger(), currentPeriod: 'oct' });
+    store.getState().execute(l => createBudgetPool(l, { id: 'new', name: '预览后新增' }));
+    const updated = store.getState().memory;
+    expect(store.getState().restore(backup, initial)).toContain('预览后账本已变化');
+    expect(store.getState().memory).toBe(updated);
+    expect(store.getState().restore(backup, updated.ledger)).toBeNull();
+  });
+  it('只读查看周期不写入本地，查看动作不改变账务内容', () => {
+    const { store, raw } = harness();
+    store.getState().enterDemo();
+    const workspace = store.getState().demo;
+    store.setState({ memory: workspace, mode: 'memory' });
+    const period = workspace.ledger.periods.at(-1)!.id;
+    store.getState().selectPeriod(period);
+    expect(store.getState().memory.currentPeriod).toBe(period);
+    expect(store.getState().memory.ledger).toBe(workspace.ledger);
+    expect(raw()).toBeNull();
+  });
+});
