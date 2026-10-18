@@ -56,7 +56,7 @@ for (const width of [375, 768, 1440]) {
     expect(await stored(page)).toBe(before);
     await upload(page, raw);
     const modal = page.getByRole('dialog', { name: '确认覆盖本地账本？' });
-    await expect(modal).toContainText('1 条流水');
+    await expect(modal).toContainText('1 条预算流水');
     await page.getByRole('button', { name: '取消恢复' }).click();
     expect(await stored(page)).toBe(before);
     await upload(page, raw);
