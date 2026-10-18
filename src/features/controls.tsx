@@ -1,15 +1,14 @@
+import type { ComponentProps } from "react";
 import { useWorkspace } from "./workspace";
 import { periodLabel } from "./format";
 export function PeriodSelect({
   name = "periodId",
   defaultValue,
-}: {
-  name?: string;
-  defaultValue?: string;
-}) {
+  ...props
+}: ComponentProps<"select">) {
   const { ledger } = useWorkspace();
   return (
-    <select name={name} defaultValue={defaultValue} required>
+    <select name={name} defaultValue={defaultValue} required {...props}>
       <option value="">选择预算周期</option>
       {ledger.periods.map((p) => (
         <option key={p.id} value={p.id}>
@@ -22,13 +21,11 @@ export function PeriodSelect({
 export function PoolSelect({
   name = "poolId",
   defaultValue,
-}: {
-  name?: string;
-  defaultValue?: string;
-}) {
+  ...props
+}: ComponentProps<"select">) {
   const { ledger } = useWorkspace();
   return (
-    <select name={name} defaultValue={defaultValue} required>
+    <select name={name} defaultValue={defaultValue} required {...props}>
       <option value="">选择资金池</option>
       {ledger.pools
         .filter((p) => p.active)
@@ -43,10 +40,8 @@ export function PoolSelect({
 export function Amount({
   name = "amount",
   defaultValue,
-}: {
-  name?: string;
-  defaultValue?: string;
-}) {
+  ...props
+}: ComponentProps<"input">) {
   return (
     <input
       name={name}
@@ -55,6 +50,7 @@ export function Amount({
       placeholder="0.00"
       required
       maxLength={16}
+      {...props}
     />
   );
 }

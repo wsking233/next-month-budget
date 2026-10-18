@@ -58,7 +58,8 @@ export type AuditEvent = {
     | "pool_updated"
     | "statement_updated"
     | "statement_reopened"
-    | "repayment_recorded";
+    | "repayment_recorded"
+    | "repayment_voided";
   subjectId: string;
   reason?: string;
   createdAt: string;
@@ -70,6 +71,7 @@ export type Repayment = {
   statementId: string;
   amount: MoneyCents;
   paidOn: string;
+  voided?: boolean;
 };
 
 export type BudgetLedger = {
@@ -606,7 +608,7 @@ export function getRepaidAmount(
   requireStatement(ledger, statementId);
   return sumMoney(
     ledger.repayments
-      .filter((p) => p.statementId === statementId)
+      .filter((p) => p.statementId === statementId && !p.voided)
       .map((p) => p.amount),
   );
 }
@@ -632,6 +634,29 @@ export function recordRepayment(
       repayment.id,
       undefined,
       `${statement.accountId} · ${repayment.amount}分 · ${repayment.paidOn}`,
+    ),
+  };
+}
+
+export function voidRepayment(
+  ledger: BudgetLedger,
+  repaymentId: string,
+  reason: string,
+): BudgetLedger {
+  const repayment = ledger.repayments.find((r) => r.id === repaymentId);
+  if (!repayment || repayment.voided) throw new Error("还款记录不存在或已作废");
+  if (!reason.trim()) throw new Error("作废原因不能为空");
+  return {
+    ...ledger,
+    repayments: ledger.repayments.map((r) =>
+      r.id === repaymentId ? { ...r, voided: true } : r,
+    ),
+    audit: appendAudit(
+      ledger,
+      "repayment_voided",
+      repaymentId,
+      reason,
+      `作废登记${repayment.amount}分；不撤销银行实际支付`,
     ),
   };
 }

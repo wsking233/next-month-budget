@@ -6,6 +6,7 @@ import {
   reopenStatement,
   updateBudgetPool,
   updateStatement,
+  voidRepayment,
   type BudgetPool,
   type Statement,
 } from "@/domain/budget";
@@ -86,7 +87,7 @@ export function RepaymentSummary({ statement }: { statement: Statement }) {
   );
 }
 export function StatementOperations({ statement }: { statement: Statement }) {
-  const { commit } = useWorkspace();
+  const { commit, ledger } = useWorkspace();
   const [open, setOpen] = useState(false);
   return (
     <div className="mt-3">
@@ -147,6 +148,43 @@ export function StatementOperations({ statement }: { statement: Statement }) {
               </p>
             </Form>
           )}
+          <div className="space-y-4">
+            {ledger.repayments
+              .filter((r) => r.statementId === statement.id)
+              .map((r) => (
+                <div key={r.id} className="rounded-xl border border-border p-4">
+                  <p className="text-sm">
+                    {r.paidOn} · {money(r.amount)} ·{" "}
+                    {r.voided ? "登记已作废" : "还款登记有效"}
+                  </p>
+                  {!r.voided && (
+                    <details className="mt-3">
+                      <summary className="cursor-pointer text-sm">
+                        登记有误？作废记录
+                      </summary>
+                      <div className="mt-3">
+                        <Form
+                          title="作废还款登记"
+                          submit="确认作废登记"
+                          onSubmit={(d) =>
+                            commit((l) =>
+                              voidRepayment(l, r.id, value(d, "reason")),
+                            )
+                          }
+                        >
+                          <Field label="作废登记原因">
+                            <input name="reason" required maxLength={200} />
+                          </Field>
+                          <p className="text-xs text-muted-foreground">
+                            仅更正本应用记录，不撤销银行支付。作废后可重新登记。
+                          </p>
+                        </Form>
+                      </div>
+                    </details>
+                  )}
+                </div>
+              ))}
+          </div>
           <Form
             title="登记已完成的还款"
             submit="登记还款"

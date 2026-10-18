@@ -1,4 +1,11 @@
-import { useId, useState, type ReactNode, type FormEvent } from "react";
+import {
+  cloneElement,
+  useId,
+  useState,
+  type ReactElement,
+  type ReactNode,
+  type FormEvent,
+} from "react";
 import { Button } from "@/components/ui/button";
 
 export function Card({
@@ -25,16 +32,19 @@ export function Field({
   hint,
 }: {
   label: string;
-  children: ReactNode;
+  children: ReactElement<{ id?: string; "aria-describedby"?: string }>;
   hint?: string;
 }) {
   const id = useId();
   return (
-    <label className="field">
-      <span>{label}</span>
-      {children}
-      {hint && <small id={id}>{hint}</small>}
-    </label>
+    <div className="field">
+      <label htmlFor={id}>{label}</label>
+      {cloneElement(children, {
+        id,
+        "aria-describedby": hint ? `${id}-hint` : undefined,
+      })}
+      {hint && <small id={`${id}-hint`}>{hint}</small>}
+    </div>
   );
 }
 export function Form({

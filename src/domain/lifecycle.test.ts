@@ -14,6 +14,7 @@ import {
   settleStatement,
   updateBudgetPool,
   updateStatement,
+  voidRepayment,
 } from "./budget";
 function example() {
   let l = createBudgetPeriod(createLedger(), {
@@ -120,4 +121,21 @@ describe("完整账单生命周期", () => {
       }),
     ).toThrow(/余额/);
   });
+});
+
+it("还款录入错误可带原因作废，历史保留且预算不变", () => {
+  let l = settleStatement(example(), "s", allocation);
+  l = recordRepayment(l, {
+    id: "r",
+    statementId: "s",
+    amount: 5000,
+    paidOn: "2026-10-20",
+  });
+  const before = l;
+  l = voidRepayment(l, "r", "金额录入错误");
+  expect(getRepaidAmount(l, "s")).toBe(0);
+  expect(getPoolBalance(l, "a", "p")).toBe(-10000);
+  expect(before.repayments[0].voided).toBeUndefined();
+  expect(l.repayments[0].amount).toBe(5000);
+  expect(() => voidRepayment(l, "r", "重复")).toThrow();
 });

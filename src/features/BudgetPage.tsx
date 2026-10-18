@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { BackupSettings } from "./BackupSettings";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { pages } from "@/pages/config";
@@ -27,7 +28,15 @@ import {
 
 export function BudgetPage({ path }: { path: string }) {
   const page = pages.find((p) => p.path === path)!;
-  const { demo, toggleDemo, message } = useWorkspace();
+  const {
+    demo,
+    toggleDemo,
+    message,
+    error,
+    reload,
+    writerReady,
+    writerSupported,
+  } = useWorkspace();
   return (
     <>
       <div className="mb-7 flex flex-wrap items-start justify-between gap-4">
@@ -45,8 +54,26 @@ export function BudgetPage({ path }: { path: string }) {
       <p className="mb-6 rounded-xl bg-accent px-4 py-3 text-sm">
         {demo
           ? "演示空间：所有示例为虚构数据，操作不会影响正式账本。"
-          : "内存账本：操作真实生效，但刷新即丢失。请勿用于长期保存。"}
+          : "本地账本 · 自动保存到当前浏览器，请定期导出备份。"}
       </p>
+      {!demo && !writerReady && (
+        <p role="status" className="mb-5 rounded-xl bg-muted p-4">
+          当前以只读方式打开。关闭其他正在编辑的标签页后，可自动继续编辑。
+        </p>
+      )}
+      {!demo && !writerSupported && (
+        <p className="mb-5 text-xs text-muted-foreground">
+          此浏览器不支持独占编辑保护，请只在一个标签页操作。
+        </p>
+      )}
+      {error && !demo && (
+        <div role="alert" className="mb-5 rounded-xl border border-border p-4">
+          <p className="error-text">{error}</p>
+          <Button variant="outline" className="mt-3" onClick={reload}>
+            重新载入账本
+          </Button>
+        </div>
+      )}
       {message && (
         <p role="status" className="mb-5 rounded-xl bg-muted p-4">
           {message}
@@ -57,7 +84,7 @@ export function BudgetPage({ path }: { path: string }) {
       {path === "/plans" && <Plans />}
       {path === "/statements" && <Statements />}
       {path === "/history" && <History />}
-      {path === "/settings" && <Settings />}
+      {path === "/settings" && <BackupSettings />}
     </>
   );
 }
@@ -643,6 +670,7 @@ const kinds: Record<string, string> = {
   statement_updated: "编辑账单",
   statement_reopened: "重新打开账单",
   repayment_recorded: "登记还款",
+  repayment_voided: "作废还款登记",
 };
 function History() {
   const { ledger } = useWorkspace();
@@ -693,14 +721,5 @@ function History() {
         )}
       </Card>
     </div>
-  );
-}
-function Settings() {
-  return (
-    <Card title="数据与隐私">
-      <p className="text-sm leading-8 text-muted-foreground">
-        首版账本仅保存在当前浏览器，不上传服务器。备份、恢复和本地数据保护将在持久化阶段接入。预算余额不等于银行现金；信用卡预算结算不代表已还款。
-      </p>
-    </Card>
   );
 }
