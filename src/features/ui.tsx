@@ -56,6 +56,7 @@ export function Form({
     setError("");
     try {
       onSubmit(new FormData(event.currentTarget));
+      event.currentTarget.reset();
     } catch (e) {
       setError(e instanceof Error ? e.message : "操作失败，请重试");
     }

@@ -4,6 +4,12 @@ import { Button } from "@/components/ui/button";
 import { pages } from "@/pages/config";
 import { useWorkspace } from "./workspace";
 import { Card, Empty, Field, Form } from "./ui";
+import { PeriodSelect, PoolSelect, Amount } from "./controls";
+import {
+  PoolEditor,
+  StatementOperations,
+  RepaymentSummary,
+} from "./Management";
 import { cents, money, periodLabel, uid, value } from "./format";
 import {
   allocateIncome,
@@ -39,7 +45,7 @@ export function BudgetPage({ path }: { path: string }) {
       <p className="mb-6 rounded-xl bg-accent px-4 py-3 text-sm">
         {demo
           ? "演示空间：所有示例为虚构数据，操作不会影响正式账本。"
-          : "交互原型：尚未接入真实入账及长期保存。"}
+          : "内存账本：操作真实生效，但刷新即丢失。请勿用于长期保存。"}
       </p>
       {message && (
         <p role="status" className="mb-5 rounded-xl bg-muted p-4">
@@ -53,64 +59,6 @@ export function BudgetPage({ path }: { path: string }) {
       {path === "/history" && <History />}
       {path === "/settings" && <Settings />}
     </>
-  );
-}
-function PeriodSelect({
-  name = "periodId",
-  defaultValue,
-}: {
-  name?: string;
-  defaultValue?: string;
-}) {
-  const { ledger } = useWorkspace();
-  return (
-    <select name={name} defaultValue={defaultValue} required>
-      <option value="">选择预算周期</option>
-      {ledger.periods.map((p) => (
-        <option key={p.id} value={p.id}>
-          {periodLabel(p)}
-        </option>
-      ))}
-    </select>
-  );
-}
-function PoolSelect({
-  name = "poolId",
-  defaultValue,
-}: {
-  name?: string;
-  defaultValue?: string;
-}) {
-  const { ledger } = useWorkspace();
-  return (
-    <select name={name} defaultValue={defaultValue} required>
-      <option value="">选择资金池</option>
-      {ledger.pools
-        .filter((p) => p.active)
-        .map((p) => (
-          <option key={p.id} value={p.id}>
-            {p.name}
-          </option>
-        ))}
-    </select>
-  );
-}
-function Amount({
-  name = "amount",
-  defaultValue,
-}: {
-  name?: string;
-  defaultValue?: string;
-}) {
-  return (
-    <input
-      name={name}
-      defaultValue={defaultValue}
-      inputMode="decimal"
-      placeholder="0.00"
-      required
-      maxLength={16}
-    />
   );
 }
 function Overview() {
@@ -257,7 +205,10 @@ function Pools() {
                 key={p.id}
                 className="flex items-center justify-between gap-3 py-4"
               >
-                <span>{p.name}</span>
+                <div className="min-w-0 flex-1">
+                  <span className="break-words">{p.name}</span>
+                  <PoolEditor pool={p} />
+                </div>
                 <span className="text-xs text-muted-foreground">
                   {p.active ? "使用中" : "已停用"}
                 </span>
@@ -444,6 +395,8 @@ function Statements() {
                     </Button>
                   )}
                 </div>
+                <RepaymentSummary statement={s} />
+                <StatementOperations statement={s} />
                 {editing === s.id && (
                   <Settlement
                     key={s.id}
@@ -686,6 +639,10 @@ const kinds: Record<string, string> = {
   budget_transferred: "预算调拨",
   settlement_cancelled: "撤销结算",
   settlement_corrected: "更正结算",
+  pool_updated: "更新资金池",
+  statement_updated: "编辑账单",
+  statement_reopened: "重新打开账单",
+  repayment_recorded: "登记还款",
 };
 function History() {
   const { ledger } = useWorkspace();
@@ -702,7 +659,8 @@ function History() {
                   {ledger.audit.length - i}. {kinds[e.kind] ?? e.kind}
                 </p>
                 <p className="mt-2 break-all text-xs text-muted-foreground">
-                  {e.reason ?? "系统保留操作记录"} · {e.subjectId}
+                  {e.reason ?? e.detail ?? "系统保留操作记录"} ·{" "}
+                  {new Date(e.createdAt).toLocaleString("zh-CN")}
                 </p>
               </li>
             ))}

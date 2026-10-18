@@ -14,14 +14,23 @@ const Context = createContext<Workspace | null>(null);
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [demo, setDemo] = useState(false);
   const [message, setMessage] = useState("");
-  const [ledger, setLedger] = useState(createLedger);
+  const [realLedger, setRealLedger] = useState(createLedger);
+  const [demoData, setDemoData] = useState(demoLedger);
+  const ledger = demo ? demoData : realLedger;
+  const setLedger = demo ? setDemoData : setRealLedger;
   function toggleDemo() {
     setDemo(!demo);
-    setLedger(demo ? createLedger() : demoLedger());
+
     setMessage("");
   }
-  function commit() {
-    setMessage("交互原型：已完成表单核对，尚未真实入账。");
+  function commit(action: (ledger: BudgetLedger) => BudgetLedger) {
+    const next = action(ledger);
+    setLedger(next);
+    setMessage(
+      demo
+        ? "演示操作已完成，不影响正式账本。"
+        : "操作已确认。当前仅内存账本，刷新即丢失。",
+    );
   }
   return (
     <Context.Provider value={{ ledger, demo, message, commit, toggleDemo }}>

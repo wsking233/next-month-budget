@@ -31,5 +31,6 @@ export function demoLedger(): BudgetLedger {
       },
     ],
     audit: [],
+    repayments: [],
   };
 }

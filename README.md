@@ -6,7 +6,7 @@
 
 ## 当前状态
 
-v0.2.0：六页面交互原型、显式隔离演示和表单核对。尚未真实入账和持久化；不适合保存真实数据。当前授权及后续阶段见 [自主迭代计划](docs/16-autonomous-iteration.md)，逐版交付见 [版本记录](docs/17-release-notes.md)。
+v0.3.0：已实现内存账务闭环、隔离演示和审计；尚无持久化，刷新丢失，不适合保存真实数据。当前授权及后续阶段见 [自主迭代计划](docs/16-autonomous-iteration.md)，逐版交付见 [版本记录](docs/17-release-notes.md)。
 
 技术栈：React 19、React Router 7、Vite 8、Tailwind CSS 4、shadcn/ui 组件约定；测试使用 Vitest + Testing Library。状态管理在业务接入时按路线图引入 Zustand，当前无需业务状态库。
 
