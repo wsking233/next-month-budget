@@ -6,7 +6,7 @@
 
 ## 当前状态
 
-Phase 1 基础工程已实现：React + TypeScript + Vite、响应式布局、六个空页面、404 和深浅色主题。领域模型及原有测试保留。当前仅为页面骨架，尚未接入业务操作、Mock、账本持久化、登录或云同步；不适合录入真实财务数据。Phase 2 及后续阶段未实施。
+v0.2.0：六页面交互原型、显式隔离演示和表单核对。尚未真实入账和持久化；不适合保存真实数据。当前授权及后续阶段见 [自主迭代计划](docs/16-autonomous-iteration.md)，逐版交付见 [版本记录](docs/17-release-notes.md)。
 
 技术栈：React 19、React Router 7、Vite 8、Tailwind CSS 4、shadcn/ui 组件约定；测试使用 Vitest + Testing Library。状态管理在业务接入时按路线图引入 Zustand，当前无需业务状态库。
 

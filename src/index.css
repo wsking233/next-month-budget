@@ -58,3 +58,12 @@ a:focus-visible { outline: 2px solid var(--ring); outline-offset: 4px; }
 .skip-link:focus { top: 1rem; }
 .empty-panel { background-image: radial-gradient(circle at 50% 0, color-mix(in srgb, var(--accent) 45%, transparent), transparent 65%); }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; scroll-behavior: auto !important; } }
+
+.field { display: flex; min-width: 0; flex-direction: column; gap: .5rem; font-size: .875rem; }
+.field > span { font-weight: 500; }
+.field small { color: var(--muted-foreground); line-height: 1.6; }
+input, select, textarea { width: 100%; min-width: 0; min-height: 44px; border: 1px solid var(--border); border-radius: .65rem; background: var(--background); color: var(--foreground); padding: .65rem .75rem; font: inherit; }
+input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.error-text { color: #b33b35; }
+.dark .error-text { color: #ffaaa2; }
+.badge { border-radius: 999px; background: var(--accent); color: var(--accent-foreground); padding: .35rem .75rem; font-size: .75rem; }

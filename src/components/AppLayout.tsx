@@ -42,11 +42,11 @@ export function AppLayout() {
       <div className="min-w-0 lg:ml-64">
         <header className="flex h-16 items-center justify-between border-b border-border px-5 sm:px-8 lg:px-12">
           <span className="text-xs text-muted-foreground">个人预算 · 你的节奏</span>
-          <div className="flex items-center gap-3"><span className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground">基础预览</span><div className="hidden lg:block"><ThemeToggle dark={dark} onToggle={() => setDark(!dark)} /></div></div>
+          <div className="flex items-center gap-3"><span className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground">交互原型</span><div className="hidden lg:block"><ThemeToggle dark={dark} onToggle={() => setDark(!dark)} /></div></div>
         </header>
         <main id="main-content" tabIndex={-1} className="mx-auto w-full max-w-6xl px-5 py-8 outline-none sm:px-8 sm:py-12 lg:px-12">
           <Outlet />
-          <footer className="mt-10 text-xs leading-6 text-muted-foreground">当前为页面骨架，尚未接入账务操作与数据保存。</footer>
+          <footer className="mt-10 text-xs leading-6 text-muted-foreground">预算是生活的规划，不是银行余额。演示数据与正式账本隔离。</footer>
         </main>
       </div>
     </div>
