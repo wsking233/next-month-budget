@@ -37,7 +37,7 @@ for (const width of [375, 768, 1440]) {
     expect(path).toBeTruthy();
     const raw = await readFile(path!, 'utf8');
     const backup = JSON.parse(raw);
-    expect(backup.schemaVersion).toBe(2);
+    expect(backup.schemaVersion).toBe(3);
     expect(backup.workspace.ledger.entries[0].amount).toBe(12345);
     await addPool(page, '恢复时应替换的资金池');
     const before = await stored(page);

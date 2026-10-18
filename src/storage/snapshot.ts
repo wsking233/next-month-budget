@@ -20,15 +20,25 @@ const legacyLedgerSchema = z.strictObject({
 const planLine = z.strictObject({ poolId: text, amount: positive });
 const template = z.strictObject({ allocations: z.array(planLine).max(1000), plannedSavings: cents.refine(value => value >= 0) });
 const income = z.strictObject({ id: text, periodId: text, reference: text.max(200), receivedOn: date, amount: positive, plannedSavings: cents.refine(value => value >= 0), allocations: z.array(planLine.extend({ entryId: text })).max(1000), status: z.enum(['applied', 'cancelled']), cancellationReason: text.max(200).optional() });
-const ledgerSchema = legacyLedgerSchema.extend({
+const ledgerSchemaV2 = legacyLedgerSchema.extend({
   planning: z.strictObject({ template, incomes: z.array(income).max(5000) }).optional(),
   entries: z.array(legacyLedgerSchema.shape.entries.element.extend({ kind: z.enum(['income_allocation', 'income_reversal', 'statement_settlement', 'transfer_out', 'transfer_in', 'reversal']) })).max(20000),
   audit: z.array(legacyLedgerSchema.shape.audit.element.extend({ kind: z.enum(['budget_template_saved', 'income_recorded', 'income_cancelled', 'period_created', 'pool_created', 'pool_updated', 'statement_revised', 'income_allocated', 'statement_recorded', 'statement_settled', 'budget_transferred', 'settlement_cancelled', 'settlement_corrected']) })).max(20000),
 });
+const creditKinds = ['credit_account_created', 'credit_account_updated', 'statement_account_linked', 'repayment_recorded', 'repayment_cancelled'] as const;
+const ledgerSchema = ledgerSchemaV2.extend({
+  credit: z.strictObject({
+    accounts: z.array(z.strictObject({ id: text, name: text.max(40), active: z.boolean() })).max(1000),
+    repayments: z.array(z.strictObject({ id: text, statementId: text, reference: text.max(100), paidOn: date, amount: positive, status: z.enum(['recorded', 'cancelled']), cancellationReason: text.max(200).optional() })).max(10000),
+  }).optional(),
+  statements: z.array(legacyLedgerSchema.shape.statements.element.extend({ creditAccountId: text.optional() })).max(5000),
+  audit: z.array(ledgerSchemaV2.shape.audit.element.extend({ kind: z.enum([...ledgerSchemaV2.shape.audit.element.shape.kind.options, ...creditKinds]) })).max(20000),
+});
 const workspaceSchema = z.strictObject({ ledger: ledgerSchema, currentPeriod: z.string().max(500) });
 const snapshotFields = { format: z.literal('next-month-budget'), savedAt: z.iso.datetime(), exportedAt: z.iso.datetime().optional() };
 const legacySnapshotSchema = z.strictObject({ ...snapshotFields, schemaVersion: z.literal(1), workspace: workspaceSchema.extend({ ledger: legacyLedgerSchema }) });
-const snapshotSchema = z.strictObject({ ...snapshotFields, schemaVersion: z.literal(2), workspace: workspaceSchema });
+const snapshotSchemaV2 = z.strictObject({ ...snapshotFields, schemaVersion: z.literal(2), workspace: workspaceSchema.extend({ ledger: ledgerSchemaV2 }) });
+const snapshotSchema = z.strictObject({ ...snapshotFields, schemaVersion: z.literal(3), workspace: workspaceSchema });
 export type Workspace = z.infer<typeof workspaceSchema>;
 export type Snapshot = z.infer<typeof snapshotSchema>;
 function fail(message: string): never { throw new Error(`账本校验失败：${message}。原账本未改变。`); }
@@ -120,6 +130,7 @@ function validateLedger(ledger: BudgetLedger) {
   }
   validateAudit(ledger, transfers);
   validatePlanning(ledger);
+  validateCredit(ledger);
 }
 
 function validateAudit(ledger: BudgetLedger, transfers: Map<string, BudgetLedger['entries']>) {
@@ -145,7 +156,7 @@ function validateAudit(ledger: BudgetLedger, transfers: Map<string, BudgetLedger
   };
   for (const [index, event] of ledger.audit.entries()) {
     if (event.id !== `${event.kind}:${event.subjectId}:${index + 1}`) fail('审计顺序或标识不一致');
-    if (['budget_template_saved', 'income_recorded', 'income_cancelled'].includes(event.kind)) continue;
+    if (['budget_template_saved', 'income_recorded', 'income_cancelled', ...creditKinds].includes(event.kind)) continue;
     if (['budget_transferred', 'statement_revised', 'settlement_cancelled', 'settlement_corrected'].includes(event.kind) && !event.reason?.trim()) fail('审计原因缺失');
     if (event.kind === 'period_created') {
       if (createdPeriods.has(event.subjectId) || !ledger.periods.some(p => p.id === event.subjectId)) fail('周期审计失效');
@@ -210,13 +221,13 @@ export function parseSnapshot(raw: string): Snapshot {
   if (new TextEncoder().encode(raw).length > MAX_BACKUP_BYTES) throw new Error('备份文件超过 2 MB，未修改原账本。');
   let input: unknown;
   try { input = JSON.parse(raw); } catch { throw new Error('无法读取 JSON 文件，原账本未改变。'); }
-  if (typeof input === 'object' && input !== null && 'schemaVersion' in input && input.schemaVersion !== 1 && input.schemaVersion !== 2) throw new Error('备份版本不兼容，请使用支持该版本的应用。原账本未改变。');
-  // Validate v1 with its original strict schema before upgrading in memory.
-  if (typeof input === 'object' && input !== null && 'schemaVersion' in input && input.schemaVersion === 1) {
-    const legacy = legacySnapshotSchema.safeParse(input);
+  if (typeof input === 'object' && input !== null && 'schemaVersion' in input && input.schemaVersion !== 1 && input.schemaVersion !== 2 && input.schemaVersion !== 3) throw new Error('备份版本不兼容，请使用支持该版本的应用。原账本未改变。');
+  // Validate each legacy format with its original strict schema before upgrading in memory.
+  if (typeof input === 'object' && input !== null && 'schemaVersion' in input && (input.schemaVersion === 1 || input.schemaVersion === 2)) {
+    const legacy = (input.schemaVersion === 1 ? legacySnapshotSchema : snapshotSchemaV2).safeParse(input);
     if (!legacy.success) fail('旧版文件格式或字段无效');
     validateWorkspace(legacy.data.workspace);
-    return { ...legacy.data, schemaVersion: 2 };
+    return { ...legacy.data, schemaVersion: 3 };
   }
   const result = snapshotSchema.safeParse(input);
   if (!result.success) fail('文件格式或字段无效');
@@ -224,7 +235,7 @@ export function parseSnapshot(raw: string): Snapshot {
   return result.data;
 }
 export function serializeSnapshot(workspace: Workspace, exported = false): string {
-  const snapshot: Snapshot = { format: 'next-month-budget', schemaVersion: 2, savedAt: new Date().toISOString(), workspace: validateWorkspace(workspace), ...(exported ? { exportedAt: new Date().toISOString() } : {}) };
+  const snapshot: Snapshot = { format: 'next-month-budget', schemaVersion: 3, savedAt: new Date().toISOString(), workspace: validateWorkspace(workspace), ...(exported ? { exportedAt: new Date().toISOString() } : {}) };
   const raw = JSON.stringify(snapshot);
   if (new TextEncoder().encode(raw).length > MAX_BACKUP_BYTES - (exported ? 0 : 128)) throw new Error('账本超过 2 MB，请减少数据量或另存备份；原账本未改变。');
   return raw;
@@ -279,4 +290,59 @@ function validatePlanning(ledger: BudgetLedger) {
   if ((planning.template.allocations.length || planning.template.plannedSavings) && !events.some(e => e.kind === 'budget_template_saved')) fail('模板审计缺失');
   if (reversed.size !== reversals.length) fail('存在无来源收入流水');
   if (events.some(e => e.kind === 'budget_template_saved' ? e.subjectId !== 'fixed' : !planning.incomes.some(i => i.id === e.subjectId))) fail('收入审计引用失效');
+}
+
+function validateCredit(ledger: BudgetLedger) {
+  const events = ledger.audit.filter(e => (creditKinds as readonly string[]).includes(e.kind));
+  if (!ledger.credit) {
+    if (events.length || ledger.statements.some(s => s.creditAccountId)) fail('信用卡账户或还款记录缺失');
+    return;
+  }
+  const { accounts, repayments } = ledger.credit;
+  unique(accounts.map(a => a.id), '信用卡账户'); unique(accounts.map(a => a.name), '信用卡账户名称');
+  unique(repayments.map(r => r.id), '还款记录');
+  unique(repayments.map(r => JSON.stringify([r.statementId, r.reference])), '账单内还款标识');
+  unique(ledger.statements.filter(s => s.creditAccountId).map(s => JSON.stringify([s.creditAccountId, s.fingerprint])), '信用卡内账单标识');
+  const created = new Set<string>(), recorded = new Set<string>(), cancelled = new Set<string>(), linked = new Set<string>();
+  for (const event of events) {
+    if (event.kind === 'credit_account_created') {
+      if (created.has(event.subjectId) || !accounts.some(a => a.id === event.subjectId)) fail('信用卡创建审计无效');
+      created.add(event.subjectId);
+    } else if (event.kind === 'credit_account_updated') {
+      if (!created.has(event.subjectId)) fail('信用卡维护顺序无效');
+    } else if (event.kind === 'statement_account_linked') {
+      const statement = ledger.statements.find(s => s.id === event.subjectId);
+      const index = ledger.audit.indexOf(event);
+      if (!statement?.creditAccountId || linked.has(statement.id) || !created.has(statement.creditAccountId) || !event.reason?.trim() || !ledger.audit.slice(0, index).some(e => e.kind === 'statement_recorded' && e.subjectId === statement.id)) fail('账单关联审计无效');
+      linked.add(statement.id);
+    } else {
+      const repayment = repayments.find(r => r.id === event.subjectId);
+      if (!repayment) fail('还款审计引用无效');
+      if (event.kind === 'repayment_recorded') {
+        const index = ledger.audit.indexOf(event);
+        if (recorded.has(repayment.id) || !ledger.audit.slice(0, index).some(e => e.kind === 'statement_recorded' && e.subjectId === repayment.statementId)) fail('还款登记顺序无效');
+        recorded.add(repayment.id);
+      } else {
+        if (!recorded.has(repayment.id) || cancelled.has(repayment.id) || repayment.status !== 'cancelled' || !event.reason || event.reason !== repayment.cancellationReason) fail('还款撤销顺序或原因无效');
+        cancelled.add(repayment.id);
+      }
+    }
+  }
+  if (created.size !== accounts.length || recorded.size !== repayments.length) fail('信用卡或还款审计不完整');
+  let total = 0n;
+  for (const repayment of repayments) {
+    if (!ledger.statements.some(s => s.id === repayment.statementId) || (repayment.status === 'cancelled' ? !cancelled.has(repayment.id) || !repayment.cancellationReason : Boolean(repayment.cancellationReason) || cancelled.has(repayment.id))) fail('还款状态或引用失效');
+    if (repayment.status === 'recorded') total += BigInt(repayment.amount);
+  }
+  safe(total);
+  for (const statement of ledger.statements) {
+    const paid = repayments.filter(r => r.statementId === statement.id && r.status === 'recorded').reduce((sum, r) => sum + BigInt(r.amount), 0n);
+    if (paid > BigInt(statement.amount)) fail('累计还款超过账单金额');
+    if (statement.creditAccountId) {
+      if (!created.has(statement.creditAccountId)) fail('账单账户引用失效');
+      const creationIndex = ledger.audit.findIndex(e => e.kind === 'credit_account_created' && e.subjectId === statement.creditAccountId);
+      const latestStatementIndex = ledger.audit.reduce((last, e, index) => ['statement_recorded', 'statement_revised', 'statement_account_linked'].includes(e.kind) && e.subjectId === statement.id ? index : last, -1);
+      if (creationIndex >= latestStatementIndex) fail('账单账户关联顺序无效');
+    }
+  }
 }

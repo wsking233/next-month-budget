@@ -50,5 +50,5 @@ it('旧版本只在成功保存后升级；迁移后配额失败保全原文件'
   expect(storage.getItem()).toBe(raw);
   storage.setItem = write;
   repository.save(workspace);
-  expect(JSON.parse(storage.getItem()!).schemaVersion).toBe(2);
+  expect(JSON.parse(storage.getItem()!).schemaVersion).toBe(3);
 });

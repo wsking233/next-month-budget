@@ -1,0 +1,133 @@
+import AxeBuilder from '@axe-core/playwright';
+import { expect, test, type Page } from '@playwright/test';
+import { createDemoLedger } from '../../src/fixtures/demo-ledger';
+import { serializeSnapshot } from '../../src/storage/snapshot';
+const key = 'next-month-budget:ledger';
+const nav = async (page: Page, title: string) => page.getByRole('navigation').getByRole('link', { name: title, exact: true }).click();
+const bill = (page: Page, name = '演示信用卡 A') => page.getByRole('article').filter({ has: page.getByRole('heading', { name, exact: true }) });
+async function start(page: Page) {
+  await page.goto('./#/');
+  const snapshot = JSON.parse(serializeSnapshot({ ledger: createDemoLedger(), currentPeriod: 'oct' }));
+  snapshot.schemaVersion = 2;
+  const raw = JSON.stringify(snapshot);
+  await page.evaluate(({ key, raw }) => localStorage.setItem(key, raw), { key, raw });
+  await page.goto('./#/statements'); await page.reload();
+  expect(await page.evaluate(key => localStorage.getItem(key), key)).toBe(raw);
+  return snapshot.workspace.ledger.entries;
+}
+async function pay(page: Page, reference: string, amount: string, name = '演示信用卡 A') {
+  await bill(page, name).getByRole('button', { name: '登记实际还款', exact: true }).click();
+  await page.getByLabel('还款标识', { exact: true }).fill(reference);
+  await page.getByLabel('实际还款日期').fill('2026-10-25');
+  await page.getByLabel('实际还款金额（元）').fill(amount);
+  await page.getByRole('button', { name: '确认记录还款' }).click();
+}
+for (const width of [375, 1440]) {
+  test(`${width}px 旧账单关联预览、分次还款、防重超额、撤销与到期列表`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width, height: 900 });
+    const entries = await start(page);
+    await nav(page, '设置');
+    await page.getByRole('button', { name: '创建信用卡账户', exact: true }).click();
+    await page.getByLabel('信用卡账户名称', { exact: true }).fill('常用信用卡');
+    expect((await new AxeBuilder({ page }).include('dialog').withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()).violations).toEqual([]);
+    await page.getByRole('button', { name: '保存信用卡账户' }).click();
+    await nav(page, '账单');
+    await bill(page).getByRole('button', { name: '关联信用卡账户', exact: true }).click();
+    await page.getByLabel('目标信用卡账户').selectOption({ label: '常用信用卡' });
+    await page.getByLabel('关联原因').fill('已核对名称');
+    const before = await page.evaluate(key => localStorage.getItem(key), key);
+    await page.getByRole('button', { name: '预览账户关联' }).click();
+    await expect(page.getByRole('dialog').getByRole('status')).toContainText('常用信用卡');
+    expect(await page.evaluate(key => localStorage.getItem(key), key)).toBe(before);
+    await page.getByRole('button', { name: '确认关联账户' }).click();
+    await pay(page, '第一笔', '1000', '常用信用卡');
+    await expect(bill(page, '常用信用卡')).toContainText('部分已还 · 已还 ¥1,000.00 · 未还 ¥1,600.00');
+    await pay(page, '第一笔', '100', '常用信用卡');
+    await expect(page.getByRole('dialog').getByRole('alert')).toContainText('重复');
+    await page.getByLabel('还款标识', { exact: true }).fill('第二笔');
+    await page.getByLabel('实际还款金额（元）').fill('1600.01');
+    await page.getByRole('button', { name: '确认记录还款' }).click();
+    await expect(page.getByRole('dialog').getByRole('alert')).toContainText('超过');
+    await page.getByLabel('实际还款金额（元）').fill('1600');
+    expect((await new AxeBuilder({ page }).include('dialog').withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()).violations).toEqual([]);
+    await page.getByRole('button', { name: '确认记录还款' }).click();
+    await expect(bill(page, '常用信用卡')).toContainText('已还清 · 已还 ¥2,600.00 · 未还 ¥0.00');
+    const due = page.locator('section').filter({ has: page.getByRole('heading', { name: '待还款到期列表' }) });
+    await expect(due).not.toContainText('常用信用卡');
+    await bill(page, '常用信用卡').getByRole('button', { name: '撤销还款记录' }).first().click();
+    await page.getByLabel('还款撤销原因').fill('第一笔误录');
+    await page.getByRole('button', { name: '确认撤销还款' }).click();
+    await page.getByLabel('还款参考日期').fill('2026-10-25');
+    await page.getByLabel('到期范围').selectOption('week');
+    await expect(due).toContainText('当日到期');
+    await expect(due).toContainText('未还 ¥1,000.00');
+    await expect(due).not.toContainText('演示信用卡 B');
+    const saved = JSON.parse((await page.evaluate(key => localStorage.getItem(key), key))!);
+    expect(saved.schemaVersion).toBe(3);
+    expect(saved.workspace.ledger.entries).toEqual(entries);
+    expect(saved.workspace.ledger.statements[0].status).toBe('recorded');
+    await page.reload();
+    await expect(bill(page, '常用信用卡')).toContainText('第一笔误录');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
+    await page.screenshot({ path: testInfo.outputPath(`repayments-${width}.png`), fullPage: true });
+  });
+}
+
+test('还款写入失败保留原数据和输入，重试只记录一次', async ({ page }) => {
+  await start(page);
+  const before = await page.evaluate(key => localStorage.getItem(key), key);
+  await page.evaluate(key => {
+    const original = Storage.prototype.setItem;
+    (window as Window & { restoreRepaymentWrite?: () => void }).restoreRepaymentWrite = () => { Storage.prototype.setItem = original; };
+    Storage.prototype.setItem = function (name, value) { if (name === key) throw new Error('quota'); original.call(this, name, value); };
+  }, key);
+  await pay(page, '重试还款', '1000');
+  await expect(page.getByRole('dialog').getByRole('alert')).toContainText('未保存');
+  await expect(page.getByLabel('还款标识', { exact: true })).toHaveValue('重试还款');
+  expect(await page.evaluate(key => localStorage.getItem(key), key)).toBe(before);
+  await page.evaluate(() => (window as Window & { restoreRepaymentWrite?: () => void }).restoreRepaymentWrite?.());
+  await page.getByRole('button', { name: '确认记录还款' }).click();
+  const next = JSON.parse((await page.evaluate(key => localStorage.getItem(key), key))!);
+  expect(next.workspace.ledger.credit.repayments).toHaveLength(1);
+  await page.reload();
+  await expect(bill(page)).toContainText('已还 ¥1,000.00');
+});
+
+test('新账单选择稳定账户，改名后资料修正及停用后还款保留关联', async ({ page }) => {
+  await start(page);
+  await nav(page, '设置');
+  await page.getByRole('button', { name: '创建信用卡账户', exact: true }).click();
+  await page.getByLabel('信用卡账户名称', { exact: true }).fill('新卡');
+  await page.getByRole('button', { name: '保存信用卡账户' }).click();
+  await nav(page, '账单');
+  await page.getByRole('button', { name: '登记账单', exact: true }).click();
+  await page.getByLabel('关联信用卡账户（可选）').selectOption({ label: '新卡' });
+  await page.getByLabel('账单标识', { exact: true }).fill('NEW');
+  await page.getByLabel('账单日', { exact: true }).fill('2026-10-05');
+  await page.getByLabel('还款日', { exact: true }).fill('2026-10-25');
+  await page.getByLabel('金额（元）', { exact: true }).fill('100');
+  await page.getByRole('button', { name: '确认添加', exact: true }).click();
+  await pay(page, '新卡首笔', '50', '新卡');
+  await nav(page, '设置');
+  await page.getByRole('button', { name: '编辑账户', exact: true }).click();
+  await page.getByLabel('信用卡账户名称', { exact: true }).fill('改名后的卡');
+  await page.getByLabel('启用信用卡账户', { exact: true }).uncheck();
+  await page.getByRole('button', { name: '保存信用卡账户' }).click();
+  await nav(page, '账单');
+  await bill(page, '改名后的卡').getByRole('button', { name: '修改账单资料' }).click();
+  await page.getByLabel('金额（元）', { exact: true }).fill('49');
+  await page.getByLabel('操作原因', { exact: true }).fill('核对资料');
+  await page.getByRole('button', { name: '确认修改资料' }).click();
+  await expect(page.getByRole('dialog').getByRole('alert')).toContainText('不能低于');
+  await page.getByLabel('金额（元）', { exact: true }).fill('100');
+  await page.getByLabel('还款日', { exact: true }).fill('2026-10-26');
+  await page.getByRole('button', { name: '确认修改资料' }).click();
+  await expect(bill(page, '改名后的卡')).toContainText('2026-10-26');
+  await pay(page, '新卡尾款', '50', '改名后的卡');
+  await page.reload();
+  await expect(bill(page, '改名后的卡')).toContainText('已还清');
+  const saved = JSON.parse((await page.evaluate(key => localStorage.getItem(key), key))!);
+  const created = saved.workspace.ledger.statements.find((s: { fingerprint: string }) => s.fingerprint === 'NEW');
+  expect(created.accountId).toBe('新卡');
+  expect(created.creditAccountId).toBe(saved.workspace.ledger.credit.accounts[0].id);
+});

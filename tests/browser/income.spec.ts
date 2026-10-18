@@ -28,7 +28,7 @@ test('旧账本迁移、模板预览无拨款、确认防重及撤销恢复', as
   await page.getByRole('button', { name: '保存模板', exact: true }).click();
   const saved = await page.evaluate(key => localStorage.getItem(key), key);
   const snapshot = JSON.parse(saved!);
-  expect(snapshot.schemaVersion).toBe(2);
+  expect(snapshot.schemaVersion).toBe(3);
   expect(snapshot.workspace.ledger.entries).toEqual(JSON.parse(legacy).workspace.ledger.entries);
   await page.getByRole('button', { name: '登记收入并分配' }).click();
   await fillIncome(page, '700');

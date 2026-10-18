@@ -1,3 +1,4 @@
+import type { CreditBook } from './credit';
 import type { IncomePlanning } from './income';
 export type MoneyCents = number;
 
@@ -22,6 +23,7 @@ export type Allocation = {
 };
 
 export type Statement = {
+  creditAccountId?: string;
   id: string;
   accountId: string;
   fingerprint: string;
@@ -47,6 +49,11 @@ export type AuditEvent = {
     | 'budget_template_saved'
     | 'income_recorded'
     | 'income_cancelled'
+    | 'credit_account_created'
+    | 'credit_account_updated'
+    | 'statement_account_linked'
+    | 'repayment_recorded'
+    | 'repayment_cancelled'
     | 'period_created'
     | 'pool_created'
     | 'pool_updated'
@@ -64,6 +71,7 @@ export type AuditEvent = {
 };
 
 export type BudgetLedger = {
+  credit?: CreditBook;
   planning?: IncomePlanning;
   periods: BudgetPeriod[];
   pools: BudgetPool[];
@@ -320,6 +328,10 @@ export function reviseStatement(ledger: BudgetLedger, statementId: string, patch
   const before = requireStatement(ledger, statementId);
   if (before.status === 'settled') throw new Error('已结算账单修改资料前须先撤销结算；只改分类可用更正分配');
   if (!reason.trim()) throw new Error('修改原因不能为空');
+  const paid = (ledger.credit?.repayments ?? []).filter(r => r.statementId === statementId && r.status === 'recorded').reduce((sum, r) => sum + BigInt(r.amount), 0n);
+  if (BigInt(patch.amount) < paid) throw new Error('账单总额不能低于已记录有效还款，请先撤销错误还款');
+  if (before.creditAccountId && before.creditAccountId !== patch.creditAccountId) throw new Error('已有账户关联不能改换，请维护原账户名称');
+  if ((before.creditAccountId !== patch.creditAccountId || before.accountId !== patch.accountId) && paid > 0n) throw new Error('已有有效还款，不能更换关联账户');
   const normalized = validateStatement(ledger, { ...patch, id: statementId });
   return { ...ledger, statements: replaceStatement(ledger, { ...normalized, status: 'recorded', allocations: [] }), audit: appendAudit(ledger, 'statement_revised', statementId, reason.trim(), `原：${describeStatement(before)}；新：${describeStatement(normalized)}；状态改为待分配`) };
 }
@@ -331,9 +343,14 @@ function validateStatement(ledger: BudgetLedger, statement: NewStatement): NewSt
     assertIsoDate(statement.statementOn, '账单日期');
     if (statement.statementOn > statement.dueOn) throw new Error('还款日不能早于账单日');
   }
+  if (statement.creditAccountId) {
+    const account = ledger.credit?.accounts.find(a => a.id === statement.creditAccountId);
+    const previous = ledger.statements.find(s => s.id === statement.id);
+    if (!account || (!account.active && previous?.creditAccountId !== account.id)) throw new Error('请选择启用的信用卡账户');
+  }
   const accountId = statement.accountId.trim(), fingerprint = statement.fingerprint.trim();
   if (!accountId || !fingerprint) throw new Error('账单账户和去重标识不能为空');
-  if (ledger.statements.some(item => item.id !== statement.id && item.accountId === accountId && item.fingerprint === fingerprint)) throw new Error('检测到重复账单');
+  if (ledger.statements.some(item => item.id !== statement.id && (item.accountId === accountId || (statement.creditAccountId && item.creditAccountId === statement.creditAccountId)) && item.fingerprint === fingerprint)) throw new Error('检测到重复账单');
   const aggregate = ledger.statements.filter(s => s.id !== statement.id).reduce((sum, s) => sum + BigInt(s.amount), BigInt(statement.amount));
   if (aggregate > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error('账单累计金额超出安全整数范围');
   return { ...statement, accountId, fingerprint };

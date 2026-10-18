@@ -50,7 +50,7 @@ describe('快照与账务一致性', () => {
     const snapshot = JSON.parse(serializeSnapshot(fixture()));
     snapshot.schemaVersion = 999;
     expect(() => parseSnapshot(JSON.stringify(snapshot))).toThrow(/版本不兼容/);
-    snapshot.schemaVersion = 2;
+    snapshot.schemaVersion = 3;
     snapshot.extra = 'sensitive';
     expect(() => parseSnapshot(JSON.stringify(snapshot))).toThrow(/格式/);
     expect(() => parseSnapshot(' '.repeat(MAX_BACKUP_BYTES + 1))).toThrow(/2 MB/);
@@ -72,13 +72,13 @@ it('检查已撤销分配与历史冲销，不能伪造当前无效分配或额�
   expect(() => parseSnapshot(JSON.stringify(forged))).toThrow(/审计/);
 });
 
-describe('版本 1 到 2 迁移', () => {
+describe('版本 1 到当前版本迁移', () => {
   it('严格校验旧格式并无损转换；读取不改写原始字符串', () => {
     const current = JSON.parse(serializeSnapshot(fixture(), true));
     const legacy = { ...current, schemaVersion: 1 };
     const raw = JSON.stringify(legacy);
     const migrated = parseSnapshot(raw);
-    expect(migrated.schemaVersion).toBe(2);
+    expect(migrated.schemaVersion).toBe(3);
     expect(migrated.workspace).toEqual(legacy.workspace);
     expect(migrated.savedAt).toBe(legacy.savedAt);
     expect(migrated.exportedAt).toBe(legacy.exportedAt);
@@ -92,4 +92,16 @@ describe('版本 1 到 2 迁移', () => {
     legacy.workspace.ledger.audit = [];
     expect(() => parseSnapshot(JSON.stringify(legacy))).toThrow();
   });
+});
+
+it('版本2收入数据完整迁移为3，拒绝旧版本夹带信用卡字段', async () => {
+  const { applyIncome } = await import('@/domain/income');
+  const ledger = applyIncome(createDemoLedger(), { id: 'salary', periodId: 'oct', reference: '工资', receivedOn: '2026-10-10', amount: 10000, plannedSavings: 5000, allocations: [{ poolId: 'daily', amount: 5000 }] });
+  const legacy = JSON.parse(serializeSnapshot({ ledger, currentPeriod: 'oct' }));
+  legacy.schemaVersion = 2;
+  const migrated = parseSnapshot(JSON.stringify(legacy));
+  expect(migrated.schemaVersion).toBe(3);
+  expect(migrated.workspace.ledger).toEqual(ledger);
+  legacy.workspace.ledger.credit = { accounts: [], repayments: [] };
+  expect(() => parseSnapshot(JSON.stringify(legacy))).toThrow(/旧版/);
 });

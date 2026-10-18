@@ -50,3 +50,9 @@
 账本可包含 `planning`：`template` 保存资金池固定金额与计划储蓄；`incomes` 保存收入 ID、周期、唯一 reference、receivedOn、amount、plannedSavings、allocations（含原 entryId）、applied/cancelled 状态及撤销原因。预算拨款仍使用原流水；新增 `income_reversal` 负数冲销及模板/收入/撤销审计事件。校验收入、流水、冲销和审计的精确对应关系。
 
 读取 v1 先使用原严格 schema 及账务校验，再返回内存 v2；读取本身不写入。下一次成功保存/导出使用 v2，失败保留原始 v1；未知版本仍拒绝。主题是独立偏好键，不进入快照。
+
+## v0.9 格式版本 3
+
+可选 `credit` 包含 accounts（稳定ID、名称、active）及 repayments（ID、statementId、reference、paidOn、amount、recorded/cancelled、撤销原因）。Statement 可带 `creditAccountId`；原 accountId 名称保留作历史资料。账户、关联及还款有独立审计，不生成预算流水。
+
+v1、v2 先按原严格 schema 及账务校验读取，在内存转换 v3，不生成账户、不猜测合并、不改写存储。后续成功保存或导出使用 v3；新备份不能供旧应用读取。
