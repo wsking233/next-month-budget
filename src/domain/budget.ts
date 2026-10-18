@@ -1,3 +1,4 @@
+import type { IncomePlanning } from './income';
 export type MoneyCents = number;
 
 export type BudgetPeriod = {
@@ -36,13 +37,16 @@ export type BudgetEntry = {
   poolId: string;
   periodId: string;
   amount: MoneyCents;
-  kind: 'income_allocation' | 'statement_settlement' | 'transfer_out' | 'transfer_in' | 'reversal';
+  kind: 'income_allocation' | 'statement_settlement' | 'transfer_out' | 'transfer_in' | 'reversal' | 'income_reversal';
   sourceId: string;
 };
 
 export type AuditEvent = {
   id: string;
   kind:
+    | 'budget_template_saved'
+    | 'income_recorded'
+    | 'income_cancelled'
     | 'period_created'
     | 'pool_created'
     | 'pool_updated'
@@ -60,6 +64,7 @@ export type AuditEvent = {
 };
 
 export type BudgetLedger = {
+  planning?: IncomePlanning;
   periods: BudgetPeriod[];
   pools: BudgetPool[];
   statements: Statement[];
@@ -357,7 +362,7 @@ function checkedEntries(ledger: BudgetLedger, additions: BudgetEntry[]): BudgetE
       balances.set(entry.poolId, (balances.get(entry.poolId) ?? 0n) + amount);
       changes.set(entry.poolId, (changes.get(entry.poolId) ?? 0n) + amount);
       ledgerTotal += amount;
-      if (entry.kind === 'income_allocation') periodFunding += amount;
+      if ((entry.kind === 'income_allocation' || entry.kind === 'income_reversal')) periodFunding += amount;
     }
     for (const total of [...balances.values(), ...changes.values(), ledgerTotal, periodFunding]) {
       if (total > BigInt(Number.MAX_SAFE_INTEGER) || total < BigInt(Number.MIN_SAFE_INTEGER)) throw new Error('累计金额超出安全整数范围');

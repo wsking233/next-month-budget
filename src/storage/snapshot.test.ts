@@ -48,9 +48,9 @@ describe('快照与账务一致性', () => {
   it('拒绝损坏 JSON、未知版本、未知字段和超大文件，不回显财务数据', () => {
     expect(() => parseSnapshot('{secret-value')).toThrow(/JSON/);
     const snapshot = JSON.parse(serializeSnapshot(fixture()));
-    snapshot.schemaVersion = 2;
+    snapshot.schemaVersion = 999;
     expect(() => parseSnapshot(JSON.stringify(snapshot))).toThrow(/版本不兼容/);
-    snapshot.schemaVersion = 1;
+    snapshot.schemaVersion = 2;
     snapshot.extra = 'sensitive';
     expect(() => parseSnapshot(JSON.stringify(snapshot))).toThrow(/格式/);
     expect(() => parseSnapshot(' '.repeat(MAX_BACKUP_BYTES + 1))).toThrow(/2 MB/);
@@ -70,4 +70,26 @@ it('检查已撤销分配与历史冲销，不能伪造当前无效分配或额�
     { id: 'fake-2', poolId: 'digital', periodId: 'oct', amount: 1, kind: 'reversal', sourceId: 'a' },
   );
   expect(() => parseSnapshot(JSON.stringify(forged))).toThrow(/审计/);
+});
+
+describe('版本 1 到 2 迁移', () => {
+  it('严格校验旧格式并无损转换；读取不改写原始字符串', () => {
+    const current = JSON.parse(serializeSnapshot(fixture(), true));
+    const legacy = { ...current, schemaVersion: 1 };
+    const raw = JSON.stringify(legacy);
+    const migrated = parseSnapshot(raw);
+    expect(migrated.schemaVersion).toBe(2);
+    expect(migrated.workspace).toEqual(legacy.workspace);
+    expect(migrated.savedAt).toBe(legacy.savedAt);
+    expect(migrated.exportedAt).toBe(legacy.exportedAt);
+    expect(raw).toBe(JSON.stringify(legacy));
+    legacy.workspace.ledger.planning = { template: { allocations: [], plannedSavings: 0 }, incomes: [] };
+    expect(() => parseSnapshot(JSON.stringify(legacy))).toThrow(/旧版/);
+  });
+  it('损坏旧账务不因迁移而绕过校验', () => {
+    const legacy = JSON.parse(serializeSnapshot(fixture())); legacy.schemaVersion = 1;
+    legacy.workspace.ledger.entries[0].amount++;
+    legacy.workspace.ledger.audit = [];
+    expect(() => parseSnapshot(JSON.stringify(legacy))).toThrow();
+  });
 });

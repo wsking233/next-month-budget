@@ -13,7 +13,7 @@ export function summarizePeriod(ledger: BudgetLedger, periodId: string) {
     const entries = ledger.entries.filter(e => e.periodId === periodId && e.poolId === pool.id);
     const opening = index > 0 ? getPoolBalance(ledger, pool.id, ledger.periods[index - 1].id) : 0;
     const closing = getPoolBalance(ledger, pool.id, periodId);
-    const funding = exactSum(entries.filter(e => e.kind === 'income_allocation').map(e => e.amount));
+    const funding = exactSum(entries.filter(e => (e.kind === 'income_allocation' || e.kind === 'income_reversal')).map(e => e.amount));
     const settled = -exactSum(entries.filter(e => e.kind === 'statement_settlement' || e.kind === 'reversal').map(e => e.amount));
     const transferred = exactSum(entries.filter(e => e.kind === 'transfer_in' || e.kind === 'transfer_out').map(e => e.amount));
     return { poolId: pool.id, name: pool.name, active: pool.active, opening, closing, funding, settled, transferred };

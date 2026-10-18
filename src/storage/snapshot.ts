@@ -10,15 +10,25 @@ const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(value => {
 const cents = z.number().int().min(Number.MIN_SAFE_INTEGER).max(Number.MAX_SAFE_INTEGER);
 const positive = cents.refine(value => value > 0);
 const allocation = z.strictObject({ id: text, poolId: text, periodId: text, amount: positive });
-const ledgerSchema = z.strictObject({
+const legacyLedgerSchema = z.strictObject({
   periods: z.array(z.strictObject({ id: text, name: text.optional(), startsOn: date, endsOn: date })).max(1200),
   pools: z.array(z.strictObject({ id: text, name: text, active: z.boolean() })).max(1000),
   statements: z.array(z.strictObject({ id: text, accountId: text, fingerprint: text, amount: positive, statementOn: date.optional(), dueOn: date, status: z.enum(['recorded', 'settled', 'cancelled']), allocations: z.array(allocation).max(1000) })).max(5000),
   entries: z.array(z.strictObject({ id: text, poolId: text, periodId: text, amount: cents.refine(value => value !== 0), kind: z.enum(['income_allocation', 'statement_settlement', 'transfer_out', 'transfer_in', 'reversal']), sourceId: text })).max(20000),
   audit: z.array(z.strictObject({ id: text, kind: z.enum(['period_created', 'pool_created', 'pool_updated', 'statement_revised', 'income_allocated', 'statement_recorded', 'statement_settled', 'budget_transferred', 'settlement_cancelled', 'settlement_corrected']), subjectId: text, createdAt: z.iso.datetime(), description: z.string().min(1).max(MAX_BACKUP_BYTES), reason: z.string().min(1).max(200).optional() })).max(20000),
 });
+const planLine = z.strictObject({ poolId: text, amount: positive });
+const template = z.strictObject({ allocations: z.array(planLine).max(1000), plannedSavings: cents.refine(value => value >= 0) });
+const income = z.strictObject({ id: text, periodId: text, reference: text.max(200), receivedOn: date, amount: positive, plannedSavings: cents.refine(value => value >= 0), allocations: z.array(planLine.extend({ entryId: text })).max(1000), status: z.enum(['applied', 'cancelled']), cancellationReason: text.max(200).optional() });
+const ledgerSchema = legacyLedgerSchema.extend({
+  planning: z.strictObject({ template, incomes: z.array(income).max(5000) }).optional(),
+  entries: z.array(legacyLedgerSchema.shape.entries.element.extend({ kind: z.enum(['income_allocation', 'income_reversal', 'statement_settlement', 'transfer_out', 'transfer_in', 'reversal']) })).max(20000),
+  audit: z.array(legacyLedgerSchema.shape.audit.element.extend({ kind: z.enum(['budget_template_saved', 'income_recorded', 'income_cancelled', 'period_created', 'pool_created', 'pool_updated', 'statement_revised', 'income_allocated', 'statement_recorded', 'statement_settled', 'budget_transferred', 'settlement_cancelled', 'settlement_corrected']) })).max(20000),
+});
 const workspaceSchema = z.strictObject({ ledger: ledgerSchema, currentPeriod: z.string().max(500) });
-const snapshotSchema = z.strictObject({ format: z.literal('next-month-budget'), schemaVersion: z.literal(1), savedAt: z.iso.datetime(), exportedAt: z.iso.datetime().optional(), workspace: workspaceSchema });
+const snapshotFields = { format: z.literal('next-month-budget'), savedAt: z.iso.datetime(), exportedAt: z.iso.datetime().optional() };
+const legacySnapshotSchema = z.strictObject({ ...snapshotFields, schemaVersion: z.literal(1), workspace: workspaceSchema.extend({ ledger: legacyLedgerSchema }) });
+const snapshotSchema = z.strictObject({ ...snapshotFields, schemaVersion: z.literal(2), workspace: workspaceSchema });
 export type Workspace = z.infer<typeof workspaceSchema>;
 export type Snapshot = z.infer<typeof snapshotSchema>;
 function fail(message: string): never { throw new Error(`账本校验失败：${message}。原账本未改变。`); }
@@ -57,6 +67,10 @@ function validateLedger(ledger: BudgetLedger) {
     movements.set(location, (movements.get(location) ?? 0n) + amount);
     if (entry.kind === 'income_allocation') {
       if (entry.amount <= 0 || entry.sourceId !== entry.id) fail('拨款金额或来源无效');
+      funding.set(entry.periodId, (funding.get(entry.periodId) ?? 0n) + amount);
+    } else if (entry.kind === 'income_reversal') {
+      const original = entries.find(e => e.id === entry.sourceId && e.kind === 'income_allocation');
+      if (!original || entry.amount !== -original.amount || entry.poolId !== original.poolId || entry.periodId !== original.periodId) fail('收入拨款冲销无效');
       funding.set(entry.periodId, (funding.get(entry.periodId) ?? 0n) + amount);
     } else if (entry.kind === 'transfer_in' || entry.kind === 'transfer_out') {
       if ((entry.kind === 'transfer_in' && entry.amount < 0) || (entry.kind === 'transfer_out' && entry.amount > 0)) fail('调拨方向无效');
@@ -105,6 +119,7 @@ function validateLedger(ledger: BudgetLedger) {
     safe(budgetTotal);
   }
   validateAudit(ledger, transfers);
+  validatePlanning(ledger);
 }
 
 function validateAudit(ledger: BudgetLedger, transfers: Map<string, BudgetLedger['entries']>) {
@@ -130,6 +145,7 @@ function validateAudit(ledger: BudgetLedger, transfers: Map<string, BudgetLedger
   };
   for (const [index, event] of ledger.audit.entries()) {
     if (event.id !== `${event.kind}:${event.subjectId}:${index + 1}`) fail('审计顺序或标识不一致');
+    if (['budget_template_saved', 'income_recorded', 'income_cancelled'].includes(event.kind)) continue;
     if (['budget_transferred', 'statement_revised', 'settlement_cancelled', 'settlement_corrected'].includes(event.kind) && !event.reason?.trim()) fail('审计原因缺失');
     if (event.kind === 'period_created') {
       if (createdPeriods.has(event.subjectId) || !ledger.periods.some(p => p.id === event.subjectId)) fail('周期审计失效');
@@ -194,15 +210,73 @@ export function parseSnapshot(raw: string): Snapshot {
   if (new TextEncoder().encode(raw).length > MAX_BACKUP_BYTES) throw new Error('备份文件超过 2 MB，未修改原账本。');
   let input: unknown;
   try { input = JSON.parse(raw); } catch { throw new Error('无法读取 JSON 文件，原账本未改变。'); }
-  if (typeof input === 'object' && input !== null && 'schemaVersion' in input && input.schemaVersion !== 1) throw new Error('备份版本不兼容，请使用支持该版本的应用。原账本未改变。');
+  if (typeof input === 'object' && input !== null && 'schemaVersion' in input && input.schemaVersion !== 1 && input.schemaVersion !== 2) throw new Error('备份版本不兼容，请使用支持该版本的应用。原账本未改变。');
+  // Validate v1 with its original strict schema before upgrading in memory.
+  if (typeof input === 'object' && input !== null && 'schemaVersion' in input && input.schemaVersion === 1) {
+    const legacy = legacySnapshotSchema.safeParse(input);
+    if (!legacy.success) fail('旧版文件格式或字段无效');
+    validateWorkspace(legacy.data.workspace);
+    return { ...legacy.data, schemaVersion: 2 };
+  }
   const result = snapshotSchema.safeParse(input);
   if (!result.success) fail('文件格式或字段无效');
   validateWorkspace(result.data.workspace);
   return result.data;
 }
 export function serializeSnapshot(workspace: Workspace, exported = false): string {
-  const snapshot: Snapshot = { format: 'next-month-budget', schemaVersion: 1, savedAt: new Date().toISOString(), workspace: validateWorkspace(workspace), ...(exported ? { exportedAt: new Date().toISOString() } : {}) };
+  const snapshot: Snapshot = { format: 'next-month-budget', schemaVersion: 2, savedAt: new Date().toISOString(), workspace: validateWorkspace(workspace), ...(exported ? { exportedAt: new Date().toISOString() } : {}) };
   const raw = JSON.stringify(snapshot);
   if (new TextEncoder().encode(raw).length > MAX_BACKUP_BYTES - (exported ? 0 : 128)) throw new Error('账本超过 2 MB，请减少数据量或另存备份；原账本未改变。');
   return raw;
+}
+
+function validatePlanning(ledger: BudgetLedger) {
+  const planning = ledger.planning;
+  const events = ledger.audit.filter(e => ['budget_template_saved', 'income_recorded', 'income_cancelled'].includes(e.kind));
+  const reversals = ledger.entries.filter(e => e.kind === 'income_reversal');
+  if (!planning) {
+    if (events.length || reversals.length) fail('收入计划或记录缺失');
+    return;
+  }
+  unique(planning.incomes.map(i => i.id), '收入标识');
+  unique(planning.incomes.map(i => JSON.stringify([i.periodId, i.reference])), '周期内收入标识');
+  unique(planning.template.allocations.map(a => a.poolId), '模板资金池');
+  if (planning.template.allocations.some(a => !ledger.pools.some(p => p.id === a.poolId))) fail('模板资金池引用失效');
+  safe(planning.template.allocations.reduce((n, a) => n + BigInt(a.amount), BigInt(planning.template.plannedSavings)));
+  const owned = new Set<string>(), reversed = new Set<string>();
+  let totalIncome = 0n;
+  for (const income of planning.incomes) {
+    if (!ledger.periods.some(p => p.id === income.periodId)) fail('收入周期引用失效');
+    unique(income.allocations.map(a => a.poolId), '收入拨款资金池');
+    const total = income.allocations.reduce((n, a) => n + BigInt(a.amount), BigInt(income.plannedSavings));
+    if (total > BigInt(income.amount)) fail('收入不足以覆盖分配');
+    const recorded = events.filter(e => e.kind === 'income_recorded' && e.subjectId === income.id);
+    const cancelled = events.filter(e => e.kind === 'income_cancelled' && e.subjectId === income.id);
+    if (recorded.length !== 1 || cancelled.length !== (income.status === 'cancelled' ? 1 : 0)) fail('收入审计不完整');
+    const recordIndex = ledger.audit.indexOf(recorded[0]);
+    if (!ledger.audit.slice(0, recordIndex).some(e => e.kind === 'period_created' && e.subjectId === income.periodId)) fail('收入创建顺序无效');
+    if (income.status === 'cancelled') {
+      if (!income.cancellationReason || cancelled[0].reason !== income.cancellationReason || ledger.audit.indexOf(cancelled[0]) <= recordIndex) fail('收入撤销原因或顺序无效');
+    } else {
+      if (income.cancellationReason) fail('有效收入不应含撤销原因');
+      totalIncome += BigInt(income.amount);
+    }
+    for (const [index, line] of income.allocations.entries()) {
+      const entry = ledger.entries.find(e => e.id === line.entryId);
+      if (line.entryId !== `income:${income.id}:${index}` || owned.has(line.entryId) || !entry || entry.kind !== 'income_allocation' || entry.amount !== line.amount || entry.poolId !== line.poolId || entry.periodId !== income.periodId) fail('收入与拨款流水不一致');
+      const fundingIndex = ledger.audit.findIndex(e => e.kind === 'income_allocated' && e.subjectId === line.entryId);
+      if (fundingIndex < 0 || fundingIndex >= recordIndex) fail('收入拨款顺序无效');
+      owned.add(line.entryId);
+      const reversal = reversals.filter(e => e.sourceId === line.entryId);
+      if (reversal.length !== (income.status === 'cancelled' ? 1 : 0)) fail('收入冲销不完整或重复');
+      for (const item of reversal) {
+        if (item.id !== `income-cancel:${line.entryId}`) fail('收入冲销标识无效');
+        reversed.add(item.id);
+      }
+    }
+  }
+  safe(totalIncome);
+  if ((planning.template.allocations.length || planning.template.plannedSavings) && !events.some(e => e.kind === 'budget_template_saved')) fail('模板审计缺失');
+  if (reversed.size !== reversals.length) fail('存在无来源收入流水');
+  if (events.some(e => e.kind === 'budget_template_saved' ? e.subjectId !== 'fixed' : !planning.incomes.some(i => i.id === e.subjectId))) fail('收入审计引用失效');
 }

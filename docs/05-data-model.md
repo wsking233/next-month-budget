@@ -44,3 +44,9 @@
 `src/storage/snapshot.ts` 定义严格 Schema 与账务校验；`repository.ts` 实现读取、校验与写入接口。首版上限 2 MB，未知版本拒绝，未设置旧版本自动迁移。读取失败时原始字符串保留；操作保存成功后才发布状态。备份校验能检测结构及账务不一致，不是签名或加密，无法保证人为改写文件的真实性。
 
 本地写入前比较已读取的原始值，配合 storage 事件检测其他标签页更新；这不构成跨标签页事务，避免多标签页同时编辑。浏览器单键写入失败会保留原值，不调用全站 localStorage.clear。
+
+## v0.8 格式版本 2
+
+账本可包含 `planning`：`template` 保存资金池固定金额与计划储蓄；`incomes` 保存收入 ID、周期、唯一 reference、receivedOn、amount、plannedSavings、allocations（含原 entryId）、applied/cancelled 状态及撤销原因。预算拨款仍使用原流水；新增 `income_reversal` 负数冲销及模板/收入/撤销审计事件。校验收入、流水、冲销和审计的精确对应关系。
+
+读取 v1 先使用原严格 schema 及账务校验，再返回内存 v2；读取本身不写入。下一次成功保存/导出使用 v2，失败保留原始 v1；未知版本仍拒绝。主题是独立偏好键，不进入快照。
